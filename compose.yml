@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # バックエンド (FastAPI)
   backend:
@@ -40,6 +38,8 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres_password
       POSTGRES_DB: event_db
+      TZ: Asia/Tokyo  # ⬅️ この行を environment の中に追加します
+    command: -c timezone=Asia/Tokyo
     ports:
       - "5432:5432"
     volumes:
