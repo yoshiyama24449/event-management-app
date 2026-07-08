@@ -3,7 +3,7 @@ import React from "react";
 // APIから取得するイベントデータの型定義
 interface EventItem {
   id: number;
-  title: str;
+  title: string;
   description: string | null;
   created_at: string;
 }
