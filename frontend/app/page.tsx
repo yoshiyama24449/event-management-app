@@ -1,65 +1,88 @@
-import Image from "next/image";
+import React from "react";
 
-export default function Home() {
+// APIから取得するイベントデータの型定義
+interface EventItem {
+  id: number;
+  title: str;
+  description: string | null;
+  created_at: string;
+}
+
+// サーバー側でデータを取得する関数 (Server Componentの機能)
+async function getEvents(): Promise<EventItem[]> {
+  // Docker Compose環境内では、コンテナ名「backend」で直接通信できますが、
+  // フロントエンドの動く場所や設定に合わせてURLを切り替えられるようにします。
+  // 今回は確実に通信を通すため、Dockerの内部ネットワーク用URL（http://backend:8000）をベースにします。
+  const apiUrl = "http://backend:8000/events";
+
+  try {
+    const res = await fetch(apiUrl, {
+      cache: "no-store", // 毎回最新のデータをバックエンドから取得する設定
+    });
+
+    if (!res.ok) {
+      throw new Error("Failed to fetch events");
+    }
+
+    return res.json();
+  } catch (error) {
+    console.error("データ取得エラー:", error);
+    return [];
+  }
+}
+
+export default async function Home() {
+  const events = await getEvents();
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
+    <main className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl mx-auto">
+        {/* ヘッダー */}
+        <div className="border-b border-gray-200 pb-5 mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
+            📅 イベント管理アプリ
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="mt-2 text-sm text-gray-500">
+            FastAPI + PostgreSQLからデータを取得しています
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* イベント一覧リスト */}
+        <div className="space-y-4">
+          {events.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
+              <p className="text-gray-500">登録されているイベントはありません。</p>
+              <p className="text-xs text-gray-400 mt-1">FastAPIの /docs からイベントを追加してみてください！</p>
+            </div>
+          ) : (
+            events.map((event) => (
+              <div
+                key={event.id}
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+              >
+                <div className="flex justify-between items-start">
+                  <h2 className="text-xl font-semibold text-gray-800">
+                    {event.title}
+                  </h2>
+                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
+                    ID: {event.id}
+                  </span>
+                </div>
+                {event.description && (
+                  <p className="mt-2 text-gray-600 text-sm leading-relaxed">
+                    {event.description}
+                  </p>
+                )}
+                <div className="mt-4 pt-3 border-t border-gray-50 flex justify-end">
+                  <time className="text-xs text-gray-400">
+                    登録日時: {new Date(event.created_at).toLocaleString("ja-JP")}
+                  </time>
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
