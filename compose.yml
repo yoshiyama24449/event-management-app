@@ -1,49 +1,103 @@
+# =========================================================================
+# 各コンテナ（サービス）の定義
+# =========================================================================
 services:
-  # バックエンド (FastAPI)
-  backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    volumes:
-      - ./backend:/app
-    ports:
-      - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres_password@db:5432/event_db
-    depends_on:
-      - db
 
-  # フロントエンド (Next.js)
+  # -----------------------------------------------------------------------
+  # ① バックエンド（FastAPI）の設定
+  # -----------------------------------------------------------------------
+  backend:
+    # どこの Dockerfile を使ってコンテナを作るかの指示
+    build:
+      context: ./backend      # backend フォルダを基準にして
+      dockerfile: Dockerfile  # そこにある Dockerfile を読み込む
+    
+    # 【超重要：ホットリロードの秘密】手元のコード変更をリアルタイムでコンテナに同期する
+    volumes:
+      - ./backend:/app        # 手元の ./backend フォルダを、コンテナ内の /app にリアルタイムで同期（マウント）
+    
+    # ポートの開放（手元のPCからアクセスできるようにする窓口）
+    ports:
+      - "8000:8000"           # 手元のPCの「8000番」にアクセスすると、コンテナの「8000番」に繋がる
+    
+    # プログラム内で読み込む環境変数（パスワード等の設定値）
+    environment:
+      # 後半の「@db:5432」の「db」は、下で定義しているデータベースのサービス名（コンテナ名）です。
+      # DockerComposeが自動で名前解決をしてくれるため、IPアドレスではなく「db」という名前で直接繋がります。
+      - DATABASE_URL=postgresql://postgres:postgres_password@db:5432/event_db
+    
+    # 起動順序の制御
+    depends_on:
+      - db                    # ⚠️ データベース（db）が先に起動してから、このバックエンドを起動する設定
+
+  # -----------------------------------------------------------------------
+  # ② フロントエンド（Next.js）の設定
+  # -----------------------------------------------------------------------
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      # 【職人技】マルチステージビルドの STAGE 1（builder）で止める指示
+      # 💡 本番環境（EKS）では最後まで（npm start）ビルドしますが、開発環境では
+      #    ソースコードを書き換えて開発したいので、あえて途中の「builder」ステージの状態で止めます。
       target: builder
+    
+    # 同期（ボリュームマウント）の設定と、Docker特有の罠の回避
     volumes:
-      - ./frontend:/app
-      # ホスト側の node_modules でコンテナ側が上書きされるのを防ぐ
+      - ./frontend:/app       # 手元のソースコードをコンテナ内に同期（ホットリロード用）
+      # ⚠️【超重要トリック：匿名ボリューム】
+      # もし手元のPCの ./frontend 内に「node_modules」が無い、または古い場合、
+      # 上の同期によってコンテナ内の正しい node_modules が消されたり上書きされてエラーになります。
+      # ここに「/app/node_modules」とだけ書くことで、「このフォルダだけは手元と同期せず、
+      # コンテナ内で新しく綺麗に作った node_modules をそのまま使いなさい」という絶対防御の指示になります。
       - /app/node_modules
+    
     ports:
-      - "3000:3000"
+      - "3000:3000"           # 手元のPCの「3000番」から、Next.js（コンテナの3000番）にアクセスできるようにする
+    
+    # 起動コマンドの上書き（開発用モード）
+    # 💡 Dockerfileの最後には本番用の「npm start」が書かれていますが、
+    #    開発時はコード修正を即座に反映させたいので、開発用の「npm run dev」にここで上書きします。
     command: npm run dev
+    
     environment:
+      # ブラウザがFastAPIと通信するためのURLを指定
       - NEXT_PUBLIC_API_URL=http://localhost:8000
+    
     depends_on:
-      - backend
+      - backend               # ⚠️ バックエンドが先に起動してから、フロントエンドを起動する
 
-  # データベース (PostgreSQL)
+  # -----------------------------------------------------------------------
+  # ③ データベース（PostgreSQL）の設定
+  # -----------------------------------------------------------------------
   db:
+    # 自分で Dockerfile を作らず、公式が配っている完成品（PostgreSQL 15の軽量版）を直接ダウンロードして使う
     image: postgres:15-alpine
+    
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres_password
-      POSTGRES_DB: event_db
-      TZ: Asia/Tokyo  # ⬅️ この行を environment の中に追加します
+      POSTGRES_USER: postgres          # 管理者ユーザー名
+      POSTGRES_PASSWORD: postgres_password  # パスワード
+      POSTGRES_DB: event_db            # 自動作成されるデータベース名
+      TZ: Asia/Tokyo                   # 🕒 OS（Linux）レイヤーの時計を日本時間（JST）にする
+    
+    # 【トラブルシューティングの成果】PostgreSQL本体の設定を上書き
+    # 💡 これにより、データベース内部の時計（postgresql.conf）も強制的に日本時間に切り替わり、
+    #    「SELECT NOW();」の結果が完璧に日本時間（+09）になりました。
     command: -c timezone=Asia/Tokyo
+    
     ports:
-      - "5432:5432"
+      - "5432:5432"           # 手元のデータベースツール（DBeaverなど）から潜り込めるようにポートを開放
+    
+    # 【超重要：データの命綱】
     volumes:
+      # コンテナを消しても、投稿したデータ（イベント情報）が絶対に消えないように、
+      # 下で定義している安全な保管用BOX（postgres_data）に、中身を丸ごと退避・保存し続けます。
       - postgres_data:/var/lib/postgresql/data
 
+# =========================================================================
+# データの保管用BOX（ボリューム）の登録宣言
+# =========================================================================
 volumes:
+  # 「postgres_data」という名前のデータ保管エリアを、ホスト（CodespacesのPC側）に安全に確保します。
+  # これがあるおかげで、コンテナを何回「down」して壊しても、データが消えずに残り続けます。
   postgres_data:
