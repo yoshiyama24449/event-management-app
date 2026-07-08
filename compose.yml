@@ -20,12 +20,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: builder
     volumes:
       - ./frontend:/app
       # ホスト側の node_modules でコンテナ側が上書きされるのを防ぐ
       - /app/node_modules
     ports:
       - "3000:3000"
+    command: npm run dev
     environment:
       - NEXT_PUBLIC_API_URL=http://localhost:8000
     depends_on:
