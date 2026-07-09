@@ -48,4 +48,7 @@ EXPOSE 8000
 #  - "--host", "0.0.0.0" : コンテナの「外（他のコンテナ等）」からの通信をすべて受け付けるための必須設定
 #  - "--port", "8000"    : 8000番ポートで待ち受ける
 #  - "--reload"          : ホットリロード有効化。手元でファイルを保存したら自動でアプリが再起動する（開発用）
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# appフォルダにmain.pyがある場合のCMDに修正
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
