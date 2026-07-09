@@ -50,6 +50,7 @@ class EventModel(Base):
     id = Column(Integer, primary_key=True, index=True)  # 自動連番（1, 2, 3...）になる主キー。検索が早くなるindex付き。
     title = Column(String(100), nullable=False)         # 最大100文字の文字列。空っぽ（NULL）での登録は禁止。
     description = Column(Text, nullable=True)           # 文字数制限なしの長文テキスト。未入力（NULL）でもOK。
+    location = Column(String(200), nullable=True)  # 📍 追加：開催場所（オンラインURLや住所など）
     
     # 🕒 タイムゾーン付きのDateTime型
     #  - timezone=True    : PostgreSQL側に「+09:00」というタイムゾーン情報も含めて保存させる設定。
@@ -58,6 +59,10 @@ class EventModel(Base):
     #    カッコを外して関数名だけを渡すことで、「データが新しく登録されるその瞬間」に毎回関数が実行され、
     #    その時の現在時刻が正しく初期値としてセットされます。
     created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)
+    
+    # 🕒 追加：イベントの開始・終了日時（タイムゾーン付き）
+    start_time = Column(DateTime(timezone=True), nullable=False)
+    end_time = Column(DateTime(timezone=True), nullable=False)
 
 # =========================================================================
 # 5. 【超重要】データベースセッションの安全なライフサイクル管理
@@ -75,3 +80,15 @@ def get_db():
         #    「最後に必ず」窓口を閉じて、データベースへの接続を解放します。
         # 💡 これを怠ると、接続が開きっぱなしになり、やがてDBがパンク（接続上限エラー）を起こします。
         db.close()
+
+
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(50), unique=True, index=True, nullable=False) # 重複不可のユーザー名
+    email = Column(String(100), unique=True, index=True, nullable=False)    # 重複不可のメールアドレス
+    hashed_password = Column(String(255), nullable=False)                  # 暗号化されたパスワード
+    is_active = Column(Integer, default=1, nullable=False)         # アカウント有効フラグ (1=有効, 0=無効)
+    created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)
