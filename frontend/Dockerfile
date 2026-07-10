@@ -12,7 +12,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # 開発用ツールやコンパイラを含む、すべてのライブラリを一度インストールします
-RUN npm install
+RUN npm ci
 
 # ソースコード（app/page.tsx など）をすべてコンテナにコピー
 COPY . .
