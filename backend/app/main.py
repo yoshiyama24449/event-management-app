@@ -1,13 +1,19 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from .database import engine, Base
 from .routers import events, auth
 
-# アプリ起動時にテーブルを自動作成（※カラムを変更した場合はDBボリュームの再作成が必要です）
-Base.metadata.create_all(bind=engine)
+# 1. アプリ起動時と終了時のイベントを定義する
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 🚀 アプリが起動する瞬間にテーブルを作成する（テスト時はここが走らないように制御できる）
+    Base.metadata.create_all(bind=engine)
+    yield
+    # 🛑 アプリが終了する時の処理があればここに書く（今回はなし）
 
-app = FastAPI(title="Event Management API")
+app = FastAPI(title="Event Management API", lifespan=lifespan)
 
 # CORS設定（Next.jsなどのフロントエンドからの通信を許可）
 app.add_middleware(

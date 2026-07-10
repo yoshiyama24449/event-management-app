@@ -1,22 +1,31 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 from datetime import datetime, timezone, timedelta
 import os
 
 # =========================================================================
 # 1. 接続先URLの取得（環境変数の読み込み）
 # =========================================================================
+# 💡 修正：テスト実行時は、conftest.pyで指定される（またはテスト用の）SQLiteを向くようにする
+# 環境変数「TEST_DATABASE_URL」があればそれを最優先し、なければ本番用のURLを使う
+DATABASE_URL = os.getenv("TEST_DATABASE_URL")
+
 # os.getenv を使い、compose.yml で指定した「DATABASE_URL」を安全に読み込みます。
 # 万が一環境変数が空だった場合のセーフティネットとして、右側にデフォルト値（バックアップ）も用意しています。
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres_password@db:5432/event_db")
+if not DATABASE_URL:
+    # 本番（Docker環境）のデフォルトURL
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres_password@db:5432/event_db")
 
 # =========================================================================
 # 2. SQLALchemy の基本コア設定
 # =========================================================================
 # 【エンジン】データベースへの「物理的な接続ルート」を確立します。
 # 実際の通信やSQLの発行は、このエンジンが裏側ですべて管理してくれます。
-engine = create_engine(DATABASE_URL)
+# 【エンジン作成】SQLiteの場合だけ、マルチスレッド用の特殊な引数を足す
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(DATABASE_URL)
 
 # 【セッション】データベースを操作するための「1回分の作業窓口」を作る工場です。
 #  - autocommit=False : データの保存を自動で行わず、明示的に「commit（確定）」を要求する安全設定。
