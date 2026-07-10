@@ -13,7 +13,9 @@ async function getEvents(): Promise<EventItem[]> {
   // Docker Compose環境内では、コンテナ名「backend」で直接通信できますが、
   // フロントエンドの動く場所や設定に合わせてURLを切り替えられるようにします。
   // 今回は確実に通信を通すため、Dockerの内部ネットワーク用URL（http://backend:8000）をベースにします。
-  const apiUrl = "http://backend:8000/events";
+  // 環境変数があればそれを使い、なければローカル（localhost）をデフォルトにする設定
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const apiUrl = `${baseUrl}/events`;
 
   try {
     const res = await fetch(apiUrl, {
