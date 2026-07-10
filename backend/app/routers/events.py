@@ -1,5 +1,5 @@
 # app/routers/events.py
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -46,8 +46,23 @@ def create_event(
 
 # --- ② イベント一覧取得（GET /events） ---
 @router.get("", response_model=List[EventResponse])
-def get_events(db: Session = Depends(get_db)):
-    return db.query(EventModel).order_by(EventModel.start_time.asc()).all()
+def get_events(
+    db: Session = Depends(get_db),
+    page: int = Query(1, ge=1, description="取得するページ番号（1始まり）"),
+    per_page: int = Query(10, ge=1, le=100, description="1ページあたりの取得件数（最大100件）")
+):
+    """イベント一覧をページネーション付きで取得する（開始日時の昇順）"""
+    # 💡 ページ番号と件数から、スキップする件数（offset）を計算する
+    # 例：page=2, per_page=10 の場合、(2-1)*10 = 10件スキップして11件目から取得
+    offset = (page - 1) * per_page
+    
+    return (
+        db.query(EventModel)
+        .order_by(EventModel.start_time.asc())
+        .offset(offset)    # 👈 何件目から取得するか
+        .limit(per_page)   # 👈 最大何件取得するか
+        .all()
+    )
 
 
 # --- ③ イベント詳細取得（GET /events/{event_id}） ---
