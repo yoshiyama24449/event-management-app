@@ -33,6 +33,8 @@ def create_event(
         title=event.title,
         description=event.description,
         location=event.location,
+        capacity=event.capacity,        # ⭕️ SQLのNotNullエラーを解消！
+        creator_id=None,                # 💡 本来はここで username から user.id を引いて入れる
         start_time=event.start_time,
         end_time=event.end_time
     )
@@ -59,7 +61,7 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
 
 # --- ④ イベント情報更新（PUT /events/{event_id}） ---
 @router.put("/{event_id}", response_model=EventResponse)
-def update_event(event_id: int, event: EventUpdate, db: Session = Depends(get_db)):
+def update_event(event_id: int, event: EventUpdate, db: Session = Depends(get_db), current_username: str = Depends(get_current_user_name)):
     db_event = db.query(EventModel).filter(EventModel.id == event_id).first()
     if db_event is None:
         raise HTTPException(status_code=404, detail="指定されたイベントが見つかりません。")
@@ -67,6 +69,7 @@ def update_event(event_id: int, event: EventUpdate, db: Session = Depends(get_db
     db_event.title = event.title
     db_event.description = event.description
     db_event.location = event.location
+    db_event.capacity = event.capacity
     db_event.start_time = event.start_time
     db_event.end_time = event.end_time
 
@@ -77,7 +80,7 @@ def update_event(event_id: int, event: EventUpdate, db: Session = Depends(get_db
 
 # --- ⑤ イベント削除（DELETE /events/{event_id}） ---
 @router.delete("/{event_id}")
-def delete_event(event_id: int, db: Session = Depends(get_db)):
+def delete_event(event_id: int, db: Session = Depends(get_db), current_username: str = Depends(get_current_user_name)):
     db_event = db.query(EventModel).filter(EventModel.id == event_id).first()
     if db_event is None:
         raise HTTPException(status_code=404, detail="指定されたイベントが見つかりません。")

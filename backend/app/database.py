@@ -51,6 +51,8 @@ class EventModel(Base):
     title = Column(String(100), nullable=False)         # 最大100文字の文字列。空っぽ（NULL）での登録は禁止。
     description = Column(Text, nullable=True)           # 文字数制限なしの長文テキスト。未入力（NULL）でもOK。
     location = Column(String(200), nullable=True)  # 📍 追加：開催場所（オンラインURLや住所など）
+    capacity = Column(Integer, nullable=False)  # 👈 追記（定員必須）
+    creator_id = Column(Integer, nullable=True) # 👈 追記（作成者ユーザーID。本来はForeignKeyですが、今は簡易的にIntegerでも可）
     
     # 🕒 タイムゾーン付きのDateTime型
     #  - timezone=True    : PostgreSQL側に「+09:00」というタイムゾーン情報も含めて保存させる設定。
@@ -87,6 +89,7 @@ class UserModel(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    sso_provider_id = Column(String(255), unique=True, nullable=True) # SSO識別子
     username = Column(String(50), unique=True, index=True, nullable=False) # 重複不可のユーザー名
     email = Column(String(100), unique=True, index=True, nullable=False)    # 重複不可のメールアドレス
     hashed_password = Column(String(255), nullable=False)                  # 暗号化されたパスワード

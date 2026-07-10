@@ -10,6 +10,7 @@ class EventBase(BaseModel):
     title: str
     description: str | None = None
     location: str | None = None
+    capacity: int = Field(..., gt=0, description="定員（1以上）") # 👈 追記（0より大きい整数）
     start_time: datetime  # フロントからは "2026-07-20T10:00:00+09:00" のようなISO形式
     end_time: datetime
 
