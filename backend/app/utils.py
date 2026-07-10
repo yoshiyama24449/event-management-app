@@ -1,9 +1,9 @@
 # app/utils.py
-from passlib.context import CryptContext
+from pwdlib import PasswordHash
 import jwt  # 📍 追加
 from datetime import datetime, timedelta, timezone
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = PasswordHash.recommended()
 
 # 📍 JWT用の設定（本番環境では環境変数から読み込むようにします）
 SECRET_KEY = "super-secret-key-change-this-in-production"
