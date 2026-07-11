@@ -1,89 +1,163 @@
-import React from "react";
+'use client';
 
-// APIから取得するイベントデータの型定義
-interface EventItem {
-  id: number;
-  title: string;
-  description: string | null;
-  created_at: string;
-}
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-// サーバー側でデータを取得する関数 (Server Componentの機能)
-async function getEvents(): Promise<EventItem[]> {
-  // Docker Compose環境内では、コンテナ名「backend」で直接通信できますが、
-  // フロントエンドの動く場所や設定に合わせてURLを切り替えられるようにします。
-  // 今回は確実に通信を通すため、Dockerの内部ネットワーク用URL（http://backend:8000）をベースにします。
-  // 環境変数があればそれを使い、なければローカル（localhost）をデフォルトにする設定
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const apiUrl = `${baseUrl}/events`;
+export default function AuthPage() {
+  const router = useRouter();
+  
+  // ログインモードか、アカウント作成モードかの切り替え状態
+  const [isLogin, setIsLogin] = useState(true);
+  
+  // 入力フォームの状態管理
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  
+  // エラーやローディングの状態表示
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  try {
-    const res = await fetch(apiUrl, {
-      cache: "no-store", // 毎回最新のデータをバックエンドから取得する設定
-    });
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-    if (!res.ok) {
-      throw new Error("Failed to fetch events");
+    // 💡 クラウド上のブラウザでも絶対に迷子にならないよう、自サーバーへの相対パスに変更
+    const mode = isLogin ? 'login' : 'register';
+    const apiUrl = `/api/auth?mode=${mode}`;
+    
+    // バックエンドの仕様に合わせてリクエストボディを構築
+    const bodyData = isLogin 
+      ? { username, password } 
+      : { username, email, password };
+
+    try {
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(bodyData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.detail || '認証に失敗しました。');
+      }
+
+      // 💡 ログイン成功、またはアカウント作成成功時の処理
+      if (isLogin) {
+        // バックエンドから返ってきたアクセストークンを保存
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('username', username);
+        
+        // 無事に認証されたのでダッシュボードへ遷移
+        router.push('/dashboard');
+      } else {
+        // アカウント作成が成功したら、自動的にログインモードに切り替える
+        alert('アカウントを作成しました！ログインしてください。');
+        setIsLogin(true);
+        setPassword('');
+      }
+    } catch (err: any) {
+      setError(err.message || '通信エラーが発生しました。');
+    } finally {
+      setLoading(false);
     }
-
-    return res.json();
-  } catch (error) {
-    console.error("データ取得エラー:", error);
-    return [];
-  }
-}
-
-export default async function Home() {
-  const events = await getEvents();
+  };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto">
-        {/* ヘッダー */}
-        <div className="border-b border-gray-200 pb-5 mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
-            📅 イベント管理アプリ
+    <main className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-100 flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+        
+        {/* タイトル部 */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">
+            📅 EventHub
           </h1>
-          <p className="mt-2 text-sm text-gray-500">
-            FastAPI + PostgreSQLからデータを取得しています
+          <p className="text-sm text-gray-500 mt-2">
+            {isLogin ? 'アカウントにログインしてイベントを管理' : '新しくアカウントを作成して始めましょう'}
           </p>
         </div>
 
-        {/* イベント一覧リスト */}
-        <div className="space-y-4">
-          {events.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-100">
-              <p className="text-gray-500">登録されているイベントはありません。</p>
-              <p className="text-xs text-gray-400 mt-1">FastAPIの /docs からイベントを追加してみてください！</p>
+        {/* エラーメッセージ表示 */}
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded-r-md">
+            <p className="text-sm text-red-700 font-medium">{error}</p>
+          </div>
+        )}
+
+        {/* フォーム */}
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              ユーザー名
+            </label>
+            <input
+              type="text"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-gray-900"
+              placeholder="yoshiyama"
+            />
+          </div>
+
+          {/* アカウント作成時のみメールアドレス入力を表示 */}
+          {!isLogin && (
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">
+                メールアドレス
+              </label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-gray-900"
+                placeholder="example@email.com"
+              />
             </div>
-          ) : (
-            events.map((event) => (
-              <div
-                key={event.id}
-                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
-              >
-                <div className="flex justify-between items-start">
-                  <h2 className="text-xl font-semibold text-gray-800">
-                    {event.title}
-                  </h2>
-                  <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded">
-                    ID: {event.id}
-                  </span>
-                </div>
-                {event.description && (
-                  <p className="mt-2 text-gray-600 text-sm leading-relaxed">
-                    {event.description}
-                  </p>
-                )}
-                <div className="mt-4 pt-3 border-t border-gray-50 flex justify-end">
-                  <time className="text-xs text-gray-400">
-                    登録日時: {new Date(event.created_at).toLocaleString("ja-JP")}
-                  </time>
-                </div>
-              </div>
-            ))
           )}
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              パスワード
+            </label>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-colors text-gray-900"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-md disabled:opacity-50 mt-2"
+          >
+            {loading ? '処理中...' : isLogin ? 'ログイン' : 'アカウント作成'}
+          </button>
+        </form>
+
+        {/* モード切り替えリンク */}
+        <div className="text-center mt-6 pt-6 border-t border-gray-100 text-sm">
+          <button
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError('');
+            }}
+            className="text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+          >
+            {isLogin ? '新規アカウントをお持ちでないですか？ 作成' : '既にアカウントをお持ちですか？ ログイン'}
+          </button>
         </div>
+
       </div>
     </main>
   );
