@@ -177,3 +177,5 @@ class CommentModel(Base):
     )
 
     created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)
+
+    user = relationship("UserModel")

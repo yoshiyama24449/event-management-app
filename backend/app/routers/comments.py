@@ -36,8 +36,7 @@ def create_comment(
             db.query(CommentModel)
             .filter(
                 CommentModel.id == comment.parent_id,
-                CommentModel.event_id
-                == event_id,  # 別のイベントのコメントへの返信を防ぐ
+                CommentModel.event_id == event_id,
             )
             .first()
         )
@@ -57,7 +56,18 @@ def create_comment(
     db.commit()
     db.refresh(db_comment)
 
-    return db_comment
+    # =========================================================================
+    # 💡 修正：CommentResponse が要求する型に合わせて辞書型を作り、username を明示する
+    # =========================================================================
+    return {
+        "id": db_comment.id,
+        "content": db_comment.content,
+        "event_id": db_comment.event_id,
+        "user_id": db_comment.user_id,
+        "parent_id": db_comment.parent_id,
+        "created_at": db_comment.created_at,
+        "username": current_username,  # 👈 認証中のユーザー名を確実にセット
+    }
 
 
 @router.get("", response_model=List[CommentResponse])
@@ -75,10 +85,27 @@ def get_comments(
             status_code=404, detail="指定されたイベントが見つかりません。"
         )
 
-    # 時系列（古い順）でそのイベントのすべてのコメントを取得
-    return (
-        db.query(CommentModel)
+    # 💡 修正：relationshipを頼らず、手動でUserModelとJOINして直接usernameを持ってくる
+    results = (
+        db.query(CommentModel, UserModel.username)
+        .join(UserModel, CommentModel.user_id == UserModel.id)
         .filter(CommentModel.event_id == event_id)
         .order_by(CommentModel.created_at.asc())
         .all()
     )
+
+    # 💡 修正：取得した結果を辞書型に手動マッピングし、usernameを確実に詰め込む
+    response_data = []
+    for comment, uname in results:
+        comment_dict = {
+            "id": comment.id,
+            "content": comment.content,
+            "event_id": comment.event_id,
+            "user_id": comment.user_id,
+            "parent_id": comment.parent_id,
+            "created_at": comment.created_at,
+            "username": uname,  # 👈 ここで確実に実際の名前（'sato_jiro'など）が入る
+        }
+        response_data.append(comment_dict)
+
+    return response_data
