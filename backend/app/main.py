@@ -20,7 +20,7 @@ app = FastAPI(title="Event Management API", lifespan=lifespan)
 # CORS設定（Next.jsなどのフロントエンドからの通信を許可）
 origins = [
     "http://localhost:3000",  # ローカル開発時のNext.js
-    "https://your-event-app.com",  # 将来本番にデプロイしたときのURL（仮）
+    # "https://your-event-app.com",  # 将来本番にデプロイしたときのURL（仮）
 ]
 app.add_middleware(
     CORSMiddleware,
