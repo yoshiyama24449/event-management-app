@@ -1,21 +1,21 @@
 # 🚀 開発コマンド備忘録
 
 ```bash
-# キャッシュを無視してクリーンビルドしてバックグラウンド起動する場合
-docker compose up --build -d db backend
-
-# ログをリアルタイムで確認しながら起動する場合
-docker compose up db backend
-
 # フロントエンドの起動
 cd /workspaces/event-management-app/frontend
 npm run dev
 
-# テストの接続先をローカルのPostgresコンテナ（5432ポート）に向けて実行
-cd /workspaces/event-management-app/backend
-TEST_DATABASE_URL=postgresql://postgres:postgres_password@localhost:5432/event_db pytest
+# pytest
+pytest /workspaces/event-management-app/backend/
+TEST_DATABASE_URL=postgresql://postgres:postgres_password@localhost:5432/event_db pytest /workspaces/event-management-app/backend/
+
+# psqlにログインして直接確認する
+docker compose exec db psql -U postgres -d event_db
+
+# event_dbでinit.sqlを実行
+docker compose exec -T db psql -U postgres -d event_db <  /workspaces/event-management-app/init.sql
 
 # root権限のフォルダを消したい場合に使用
 cd /workspaces/event-management-app # プロジェクトルートに移動
-sudo rm -rf frontend/.next/ frontend/node_modules/ frontend/next-env.d.ts
-mkdir frontend/node_modules
+sudo rm -rf /workspaces/event-management-app/frontend/.next/ /workspaces/event-management-app/frontend/node_modules/ /workspaces/event-management-app/frontend/next-env.d.ts
+mkdir /workspaces/event-management-app/frontend/node_modules
