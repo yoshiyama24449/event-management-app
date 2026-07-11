@@ -22,8 +22,8 @@ export default function EventsPage() {
   // イベント作成フォームの状態管理
   const [title, setTitle] = useState('');
   const [capacity, setCapacity] = useState(10);
-  const [description, setDescription] = useState(''); // 💡 追記
-  const [location, setLocation] = useState('');       // 💡 追記
+  const [description, setDescription] = useState('');
+  const [location, setLocation] = useState('');
   const [startDate, setStartDate] = useState('');
   const [startHour, setStartHour] = useState('08');
   const [startMinute, setStartMinute] = useState('00');
@@ -32,6 +32,12 @@ export default function EventsPage() {
   const [endMinute, setEndMinute] = useState('00');
   const [createError, setCreateError] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
+
+  // 💡 ログアウト処理を追加
+  const handleLogout = () => {
+    localStorage.clear();
+    router.push('/');
+  };
 
   // トークンの取得と一覧の読み込み
   const fetchEvents = async () => {
@@ -163,12 +169,18 @@ export default function EventsPage() {
           <span className="text-xl font-bold text-gray-900 tracking-tight cursor-pointer" onClick={() => router.push('/dashboard')}>
             📅 EventHub
           </span>
-          <div className="flex space-x-4">
-            <button onClick={() => router.push('/dashboard')} className="text-sm text-gray-600 hover:text-indigo-600 font-medium">
+          <div className="flex items-center space-x-6">
+            <button onClick={() => router.push('/dashboard')} className="cursor-pointer text-sm text-gray-600 hover:text-indigo-600 font-medium">
               ダッシュボード
             </button>
-            <button onClick={() => router.push('/events')} className="text-sm text-indigo-600 font-bold">
+            <button onClick={() => router.push('/events')} className="cursor-pointer text-sm text-indigo-600 font-bold">
               イベント一覧
+            </button>
+            <button
+              onClick={handleLogout}
+              className="cursor-pointer text-sm text-gray-500 hover:text-red-600 font-medium transition-colors"
+            >
+              ログアウト
             </button>
           </div>
         </div>
@@ -206,7 +218,7 @@ export default function EventsPage() {
                   
                   <button
                     onClick={() => router.push(`/events/${event.id}`)}
-                    className="w-full text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg text-sm transition-colors"
+                    className="cursor-pointer w-full text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-2 rounded-lg text-sm transition-colors"
                   >
                     詳細・コメントを見る →
                   </button>

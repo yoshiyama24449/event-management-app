@@ -38,6 +38,12 @@ export default function EventDetailPage() {
   const [replyTargetId, setReplyTargetId] = useState<number | null>(null); // 返信対象の親コメントID
   const [replyContent, setReplyContent] = useState('');
 
+  // 💡 ログアウト処理を追加
+  const handleLogout = () => {
+    localStorage.clear();
+    router.push('/');
+  };
+
   // 1. イベント詳細・コメント・登録ステータスのデータ一括取得
   const fetchData = async () => {
     const token = localStorage.getItem('token');
@@ -201,12 +207,18 @@ export default function EventDetailPage() {
           <span className="text-xl font-bold text-gray-900 tracking-tight cursor-pointer" onClick={() => router.push('/dashboard')}>
             📅 EventHub
           </span>
-          <div className="flex space-x-4">
-            <button onClick={() => router.push('/dashboard')} className="text-sm text-gray-600 hover:text-indigo-600 font-medium">
+          <div className="flex items-center space-x-6">
+            <button onClick={() => router.push('/dashboard')} className="cursor-pointer text-sm text-gray-600 hover:text-indigo-600 font-medium">
               ダッシュボード
             </button>
-            <button onClick={() => router.push('/events')} className="text-sm text-gray-600 hover:text-indigo-600 font-medium">
+            <button onClick={() => router.push('/events')} className="cursor-pointer text-sm text-gray-600 hover:text-indigo-600 font-medium">
               イベント一覧
+            </button>
+            <button
+              onClick={handleLogout}
+              className="cursor-pointer text-sm text-gray-500 hover:text-red-600 font-medium transition-colors"
+            >
+              ログアウト
             </button>
           </div>
         </div>
@@ -229,7 +241,7 @@ export default function EventDetailPage() {
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => handleStatusChange(myStatus === 'attending' ? 'none' : 'attending')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                   myStatus === 'attending'
                     ? 'bg-green-600 text-white shadow-sm'
                     : 'bg-gray-100 hover:bg-green-50 text-gray-700 hover:text-green-700'
@@ -240,7 +252,7 @@ export default function EventDetailPage() {
 
               <button
                 onClick={() => handleStatusChange(myStatus === 'bookmark' ? 'none' : 'bookmark')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold transition-all ${
                   myStatus === 'bookmark'
                     ? 'bg-yellow-500 text-white shadow-sm'
                     : 'bg-gray-100 hover:bg-yellow-50 text-gray-700 hover:text-yellow-600'
@@ -266,7 +278,7 @@ export default function EventDetailPage() {
               placeholder="イベントに関する質問を投稿..."
               className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 text-gray-900"
             />
-            <button type="submit" className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors shadow-sm">
+            <button type="submit" className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-4 py-2 rounded-lg text-sm transition-colors shadow-sm">
               投稿
             </button>
           </form>
@@ -293,7 +305,7 @@ export default function EventDetailPage() {
                       {/* 返信ボタンのトグル */}
                       <button
                         onClick={() => setReplyTargetId(replyTargetId === parent.id ? null : parent.id)}
-                        className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold mt-1 transition-colors"
+                        className="cursor-pointer text-xs text-indigo-600 hover:text-indigo-800 font-semibold mt-1 transition-colors"
                       >
                         {replyTargetId === parent.id ? 'キャンセル' : '↳ 返信を書く'}
                       </button>
@@ -325,7 +337,7 @@ export default function EventDetailPage() {
                           placeholder={`${parent.username || `User #${parent.user_id}`} さんへの返信を入力...`}
                           className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 text-gray-900"
                         />
-                        <button type="submit" className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors">
+                        <button type="submit" className="cursor-pointer bg-indigo-500 hover:bg-indigo-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors">
                           返信
                         </button>
                       </form>
