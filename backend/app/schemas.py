@@ -1,5 +1,6 @@
 # app/schemas.py
-from pydantic import BaseModel, field_validator, Field, ConfigDict
+from app.database import get_jst_now
+from pydantic import BaseModel, field_validator, Field, ConfigDict, computed_field
 from datetime import datetime
 from typing import Literal
 
@@ -18,22 +19,34 @@ class EventBase(BaseModel):
     start_time: datetime  # フロントからは "2026-07-20T10:00:00+09:00" のようなISO形式
     end_time: datetime
 
-    # 終了時刻が開始時刻より前になっていないかチェックするバリデーション
+
+class EventCreate(EventBase):
     @field_validator("end_time")
     @classmethod
     def check_dates(cls, end_time: datetime, info):
         start_time = info.data.get("start_time")
-        if start_time and end_time < start_time:
-            raise ValueError("終了日時は開始日時より後の時間を指定してください。")
+        if start_time:
+            # 1. 開始日時が現在時刻（日本時間）より未来かチェック
+            if start_time < get_jst_now():
+                raise ValueError("開始日時には現在より未来の日時を指定してください。")
+            # 2. 終了時刻が開始時刻より後かチェック
+            if end_time < start_time:
+                raise ValueError("終了日時は開始日時より後の時間を指定してください。")
         return end_time
 
 
-class EventCreate(EventBase):
-    pass
-
-
 class EventUpdate(EventBase):
-    pass
+    # 💡 更新時も同様のルールを適用させる
+    @field_validator("end_time")
+    @classmethod
+    def check_dates(cls, end_time: datetime, info):
+        start_time = info.data.get("start_time")
+        if start_time:
+            if start_time < get_jst_now():
+                raise ValueError("開始日時には現在より未来の日時を指定してください。")
+            if end_time < start_time:
+                raise ValueError("終了日時は開始日時より後の時間を指定してください。")
+        return end_time
 
 
 class EventResponse(EventBase):
@@ -98,6 +111,7 @@ class CommentResponse(BaseModel):
     content: str
     event_id: int
     user_id: int
+    username: str
     parent_id: int | None
     created_at: datetime
 
