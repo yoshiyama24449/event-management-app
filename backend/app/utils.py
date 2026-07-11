@@ -10,25 +10,27 @@ SECRET_KEY = "super-secret-key-change-this-in-production"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # トークンの有効期限（1時間）
 
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
+
 
 # 📍 追加：アクセストークンを作成する関数
 def create_access_token(data: dict) -> str:
     """ユーザー情報を元に有効期限付きのJWTトークンを発行する"""
     to_encode = data.copy()
-    
+
     # 有効期限を設定（現在時刻 + 60分）
     expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
-    
+
     # 暗号化してトークン（文字列）を作成
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
 
 
 from fastapi.security import OAuth2PasswordBearer
@@ -37,6 +39,7 @@ import jwt
 
 # フロントがトークンを「Authorization: Bearer <トークン>」というヘッダーで送ってくることを定義
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
+
 
 def get_current_user_name(token: str = Depends(oauth2_scheme)) -> str:
     """JWTトークンを検証し、ログイン中のユーザー名を返す関数"""
