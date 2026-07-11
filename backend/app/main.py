@@ -18,9 +18,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Event Management API", lifespan=lifespan)
 
 # CORS設定（Next.jsなどのフロントエンドからの通信を許可）
+origins = [
+    "http://localhost:3000",  # ローカル開発時のNext.js
+    "https://your-event-app.com",  # 将来本番にデプロイしたときのURL（仮）
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
