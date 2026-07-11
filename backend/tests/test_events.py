@@ -36,3 +36,47 @@ def test_create_and_get_event(client):
     
     assert len(events_list) > 0
     assert events_list[0]["title"] == "テスト用モブプロ"
+
+def test_create_event_invalid_capacity(client):
+    """不足追加①: 定員が0以下の場合はバリデーションエラー(422)になること"""
+    jst = timezone(timedelta(hours=9))
+    start = datetime.now(jst) + timedelta(days=1)
+    end = start + timedelta(hours=2)
+
+    invalid_data = {
+        "title": "定員エラーテスト",
+        "description": "定員が0なので弾かれるはずです",
+        "location": "オンライン",
+        "capacity": 0,  # 👈 1以上でなければならない
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat()
+    }
+    
+    response = client.post("/events", json=invalid_data, headers={"X-User-Name": "test_user"})
+    assert response.status_code == 422
+
+
+def test_create_event_invalid_date_order(client):
+    """不足追加②: 終了日時が開始日時より前の場合はバリデーションエラー(422)になること"""
+    jst = timezone(timedelta(hours=9))
+    start = datetime.now(jst) + timedelta(days=1)
+    end = start - timedelta(hours=2)  # 👈 開始より2時間前の過去に設定
+
+    invalid_data = {
+        "title": "日時逆転テスト",
+        "description": "日時が逆なので弾かれるはずです",
+        "location": "オンライン",
+        "capacity": 10,
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat()
+    }
+    
+    response = client.post("/events", json=invalid_data, headers={"X-User-Name": "test_user"})
+    assert response.status_code == 422
+
+
+def test_get_event_not_found(client):
+    """不足追加③: 存在しないイベントIDを取得しようとしたら404になること"""
+    response = client.get("/events/99999")  # 👈 存在しないあり得ないID
+    assert response.status_code == 404
+    assert response.json()["detail"] == "指定されたイベントが見つかりません。"
