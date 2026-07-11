@@ -112,7 +112,17 @@ class DashboardCreatedEvent(BaseModel):
     title: int | str  # タイトル
     capacity: int
     attendee_count: int  # 参加人数
+    attendees: list[str]
     comment_count: int  # コメント件数
+
+
+# 自分のコメントとそれに対する返信のセット
+class MyCommentActivity(BaseModel):
+    comment_id: int
+    event_id: int
+    event_title: str
+    my_content: str
+    replies: list[str]  # 自分への返信内容のリスト
 
 
 class DashboardCalendarEvent(BaseModel):
@@ -128,5 +138,7 @@ class DashboardResponse(BaseModel):
     created_events: list[DashboardCreatedEvent]
     # 2. カレンダー表示用（自分が参加予定・またはブックマークしたイベント）
     calendar_events: list[DashboardCalendarEvent]
+    # 3. 自分が投稿したコメントと、それに対する返信のセット
+    my_comments: list[MyCommentActivity]
 
     model_config = ConfigDict(from_attributes=True)
