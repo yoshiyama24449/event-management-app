@@ -102,3 +102,31 @@ class CommentResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- ダッシュボード用のPydanticモデル ---
+
+
+class DashboardCreatedEvent(BaseModel):
+    id: int
+    title: int | str  # タイトル
+    capacity: int
+    attendee_count: int  # 参加人数
+    comment_count: int  # コメント件数
+
+
+class DashboardCalendarEvent(BaseModel):
+    id: int
+    title: str
+    start_time: datetime
+    end_time: datetime
+    status: str  # 'attending' または 'bookmark'
+
+
+class DashboardResponse(BaseModel):
+    # 1. 自分が作成したイベント一覧（簡易統計付き）
+    created_events: list[DashboardCreatedEvent]
+    # 2. カレンダー表示用（自分が参加予定・またはブックマークしたイベント）
+    calendar_events: list[DashboardCalendarEvent]
+
+    model_config = ConfigDict(from_attributes=True)
