@@ -1,5 +1,13 @@
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy import (
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Text,
+    DateTime,
+    ForeignKey,
+)
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from datetime import datetime, timezone, timedelta
 import os
 
@@ -14,7 +22,9 @@ DATABASE_URL = os.getenv("TEST_DATABASE_URL")
 # 万が一環境変数が空だった場合のセーフティネットとして、右側にデフォルト値（バックアップ）も用意しています。
 if not DATABASE_URL:
     # 本番（Docker環境）のデフォルトURL
-    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres_password@db:5432/event_db")
+    DATABASE_URL = os.getenv(
+        "DATABASE_URL", "postgresql://postgres:postgres_password@db:5432/event_db"
+    )
 
 # =========================================================================
 # 2. SQLALchemy の基本コア設定
@@ -42,11 +52,13 @@ Base = declarative_base()
 # 世界標準時（UTC）から数えて「プラス9時間」の場所が日本（JST）であることを定義します。
 JST = timezone(timedelta(hours=9))
 
+
 def get_jst_now():
     """現在時刻を日本時間(JST)で取得するヘルパー関数"""
     # 💡 datetime.now() に JST の情報を渡すことで、サーバーが世界のどこ（AWSのアメリカ等）で
     #    動いていても、確実に「その瞬間の正確な日本時間」を取得できるようにします。
     return datetime.now(JST)
+
 
 # =========================================================================
 # 4. イベントテーブルの構造定義（ORMモデル）
@@ -56,13 +68,23 @@ class EventModel(Base):
     __tablename__ = "events"  # データベース側に作られる実際のテーブル名
 
     # 各カラム（列）の定義
-    id = Column(Integer, primary_key=True, index=True)  # 自動連番（1, 2, 3...）になる主キー。検索が早くなるindex付き。
-    title = Column(String(100), nullable=False)         # 最大100文字の文字列。空っぽ（NULL）での登録は禁止。
-    description = Column(Text, nullable=True)           # 文字数制限なしの長文テキスト。未入力（NULL）でもOK。
-    location = Column(String(200), nullable=True)  # 📍 追加：開催場所（オンラインURLや住所など）
+    id = Column(
+        Integer, primary_key=True, index=True
+    )  # 自動連番（1, 2, 3...）になる主キー。検索が早くなるindex付き。
+    title = Column(
+        String(100), nullable=False
+    )  # 最大100文字の文字列。空っぽ（NULL）での登録は禁止。
+    description = Column(
+        Text, nullable=True
+    )  # 文字数制限なしの長文テキスト。未入力（NULL）でもOK。
+    location = Column(
+        String(200), nullable=True
+    )  # 📍 追加：開催場所（オンラインURLや住所など）
     capacity = Column(Integer, nullable=False)  # 👈 追記（定員必須）
-    creator_id = Column(Integer, nullable=True) # 👈 追記（作成者ユーザーID。本来はForeignKeyですが、今は簡易的にIntegerでも可）
-    
+    creator_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
     # 🕒 タイムゾーン付きのDateTime型
     #  - timezone=True    : PostgreSQL側に「+09:00」というタイムゾーン情報も含めて保存させる設定。
     #  - default=get_jst_now : ⚠️【超重要：カッコをつけない理由】
@@ -70,10 +92,11 @@ class EventModel(Base):
     #    カッコを外して関数名だけを渡すことで、「データが新しく登録されるその瞬間」に毎回関数が実行され、
     #    その時の現在時刻が正しく初期値としてセットされます。
     created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)
-    
+
     # 🕒 追加：イベントの開始・終了日時（タイムゾーン付き）
     start_time = Column(DateTime(timezone=True), nullable=False)
     end_time = Column(DateTime(timezone=True), nullable=False)
+
 
 # =========================================================================
 # 5. 【超重要】データベースセッションの安全なライフサイクル管理
@@ -93,14 +116,39 @@ def get_db():
         db.close()
 
 
-
 class UserModel(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
-    sso_provider_id = Column(String(255), unique=True, nullable=True) # SSO識別子
-    username = Column(String(50), unique=True, index=True, nullable=False) # 重複不可のユーザー名
-    email = Column(String(100), unique=True, index=True, nullable=False)    # 重複不可のメールアドレス
-    hashed_password = Column(String(255), nullable=False)                  # 暗号化されたパスワード
-    is_active = Column(Integer, default=1, nullable=False)         # アカウント有効フラグ (1=有効, 0=無効)
+    sso_provider_id = Column(String(255), unique=True, nullable=True)  # SSO識別子
+    username = Column(
+        String(50), unique=True, index=True, nullable=False
+    )  # 重複不可のユーザー名
+    email = Column(
+        String(100), unique=True, index=True, nullable=False
+    )  # 重複不可のメールアドレス
+    hashed_password = Column(String(255), nullable=False)  # 暗号化されたパスワード
+    is_active = Column(
+        Integer, default=1, nullable=False
+    )  # アカウント有効フラグ (1=有効, 0=無効)
+    created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)
+
+
+# =========================================================================
+# 6. イベント参加・ブックマーク管理テーブルの構造定義（ORMモデル）
+# =========================================================================
+class EventRegistrationModel(Base):
+    __tablename__ = "event_registrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    event_id = Column(
+        Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # statusには 'attending' (参加) または 'bookmark' (ブックマーク) が入ります
+    status = Column(String(50), nullable=False)
+
     created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)

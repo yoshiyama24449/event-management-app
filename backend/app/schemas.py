@@ -1,16 +1,20 @@
 # app/schemas.py
 from pydantic import BaseModel, field_validator, Field, ConfigDict
 from datetime import datetime
+from typing import Literal
 
 # =========================================================================
 # Pydanticモデル（バリデーション ＆ データ構造の定義）
 # =========================================================================
 
+
 class EventBase(BaseModel):
     title: str
     description: str | None = None
     location: str | None = None
-    capacity: int = Field(..., gt=0, description="定員（1以上）") # 👈 追記（0より大きい整数）
+    capacity: int = Field(
+        ..., gt=0, description="定員（1以上）"
+    )  # 👈 追記（0より大きい整数）
     start_time: datetime  # フロントからは "2026-07-20T10:00:00+09:00" のようなISO形式
     end_time: datetime
 
@@ -23,11 +27,14 @@ class EventBase(BaseModel):
             raise ValueError("終了日時は開始日時より後の時間を指定してください。")
         return end_time
 
+
 class EventCreate(EventBase):
     pass
 
+
 class EventUpdate(EventBase):
     pass
+
 
 class EventResponse(EventBase):
     id: int
@@ -36,21 +43,41 @@ class EventResponse(EventBase):
     model_config = ConfigDict(from_attributes=True)
 
 
-
 # --- ユーザー用のPydanticモデル ---
+
 
 class UserBase(BaseModel):
     username: str
     email: str
+
 
 # ユーザー登録（サインアップ）時にフロントから送られてくるデータ
 class UserCreate(UserBase):
     # 📍 Field(examples=[...]) を使って、流出リストにない独自の複雑なパスワードをデフォルト値に設定
     password: str = Field(..., examples=["Dev-EventApp-2026!#"])
 
+
 # 画面にユーザー情報を返すときのデータ（⚠️絶対パスワードは含めない！）
 class UserResponse(UserBase):
     id: int
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# --- イベント参加登録用のPydanticモデル ---
+
+
+class RegistrationCreate(BaseModel):
+    # statusは 'attending' か 'bookmark' のどちらかのみ許可する
+    status: Literal["attending", "bookmark"]
+
+
+class RegistrationResponse(BaseModel):
+    id: int
+    user_id: int
+    event_id: int
+    status: str
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

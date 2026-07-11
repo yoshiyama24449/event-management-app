@@ -3,7 +3,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from .database import engine, Base
-from .routers import events, auth
+from .routers import events, auth, registrations
+
 
 # 1. アプリ起動時と終了時のイベントを定義する
 @asynccontextmanager
@@ -12,6 +13,7 @@ async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
     yield
     # 🛑 アプリが終了する時の処理があればここに書く（今回はなし）
+
 
 app = FastAPI(title="Event Management API", lifespan=lifespan)
 
@@ -27,8 +29,9 @@ app.add_middleware(
 # =========================================================================
 # ルーターの登録（合体）
 # =========================================================================
-app.include_router(events.router)
 app.include_router(auth.router)
+app.include_router(events.router)
+app.include_router(registrations.router)
 
 
 # 疎通確認用のルートだけ残しておく（無くてもOK）
