@@ -152,3 +152,28 @@ class EventRegistrationModel(Base):
     status = Column(String(50), nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)
+
+
+# =========================================================================
+# 7. コメントテーブルの構造定義（ORMモデル）
+# =========================================================================
+class CommentModel(Base):
+    __tablename__ = "comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    content = Column(Text, nullable=False)
+
+    # 各種外部キーの設定（CASCADE連動）
+    event_id = Column(
+        Integer, ForeignKey("events.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # 💡 自己参照（返信機能）：親コメントのID。単体投稿の場合は NULL（None）になります
+    parent_id = Column(
+        Integer, ForeignKey("comments.id", ondelete="CASCADE"), nullable=True
+    )
+
+    created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)

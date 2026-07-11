@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from .database import engine, Base
-from .routers import events, auth, registrations
+from .routers import events, auth, registrations, comments
 
 
 # 1. アプリ起動時と終了時のイベントを定義する
@@ -32,6 +32,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(events.router)
 app.include_router(registrations.router)
+app.include_router(comments.router)
 
 
 # 疎通確認用のルートだけ残しておく（無くてもOK）

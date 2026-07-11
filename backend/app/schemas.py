@@ -81,3 +81,24 @@ class RegistrationResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# --- コメント用のPydanticモデル ---
+
+
+class CommentCreate(BaseModel):
+    content: str
+    parent_id: int | None = (
+        None  # 💡 通常のコメントなら None、返信なら親コメントのIDを入れる
+    )
+
+
+class CommentResponse(BaseModel):
+    id: int
+    content: str
+    event_id: int
+    user_id: int
+    parent_id: int | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
