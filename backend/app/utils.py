@@ -1,12 +1,14 @@
 # app/utils.py
 from pwdlib import PasswordHash
-import jwt  # 📍 追加
+import jwt
 from datetime import datetime, timedelta, timezone
+import os
 
 pwd_context = PasswordHash.recommended()
 
-# 📍 JWT用の設定（本番環境では環境変数から読み込むようにします）
-SECRET_KEY = "super-secret-key-change-this-in-production"
+# 📍 JWT用の設定（ローカル開発時はデフォルト値が動き、本番環境では環境変数から読み込むようにします）
+# 💡 環境変数から取得し、万が一設定漏れがあった場合のセーフティネットとしてデフォルト値を置いておく
+SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key-change-this-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60  # トークンの有効期限（1時間）
 
