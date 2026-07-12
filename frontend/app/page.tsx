@@ -139,7 +139,7 @@ export default function AuthPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-md disabled:opacity-50 mt-2"
+            className="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition-colors shadow-md disabled:opacity-50 mt-2"
           >
             {loading ? '処理中...' : isLogin ? 'ログイン' : 'アカウント作成'}
           </button>
@@ -152,7 +152,7 @@ export default function AuthPage() {
               setIsLogin(!isLogin);
               setError('');
             }}
-            className="text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            className="cursor-pointer text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
           >
             {isLogin ? '新規アカウントをお持ちでないですか？ 作成' : '既にアカウントをお持ちですか？ ログイン'}
           </button>
