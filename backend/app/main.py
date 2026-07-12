@@ -5,17 +5,7 @@ from contextlib import asynccontextmanager
 from .database import engine, Base
 from .routers import events, auth, registrations, comments, dashboard
 
-
-# 1. アプリ起動時と終了時のイベントを定義する
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # 🚀 アプリが起動する瞬間にテーブルを作成する（テスト時はここが走らないように制御できる）
-    Base.metadata.create_all(bind=engine)
-    yield
-    # 🛑 アプリが終了する時の処理があればここに書く（今回はなし）
-
-
-app = FastAPI(title="Event Management API", lifespan=lifespan)
+app = FastAPI(title="Event Management API")
 
 # CORS設定（Next.jsなどのフロントエンドからの通信を許可）
 origins = [
