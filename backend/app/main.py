@@ -1,8 +1,6 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from .database import engine, Base
 from .routers import events, auth, registrations, comments, dashboard
 
 app = FastAPI(title="Event Management API")
