@@ -13,6 +13,10 @@ export async function DELETE(request: Request) {
   return handleRequest(request, 'DELETE');
 }
 
+export async function PUT(request: Request) {
+  return handleRequest(request, 'PUT');
+}
+
 async function handleRequest(request: Request, method: string) {
   try {
     const { searchParams } = new URL(request.url);
@@ -39,13 +43,12 @@ async function handleRequest(request: Request, method: string) {
     let backendUrl = `http://backend:8000${backendPath}`;
     let requestBody: any = undefined;
 
-    if (method === 'POST') {
-      // 💡 どんな形式で送られてきても安全にオブジェクトにパースする
+    // 💡 POST または PUT の場合は、フロントからのデータを解析して引き継ぐ
+    if (method === 'POST' || method === 'PUT') {
       let body: any;
       const rawBody = await request.text();
       try {
         body = JSON.parse(rawBody);
-        // もしパースした結果がまだ文字列だったら、もう一度パースする（二重stringify対策）
         if (typeof body === 'string') {
           body = JSON.parse(body);
         }
@@ -53,7 +56,7 @@ async function handleRequest(request: Request, method: string) {
         body = rawBody;
       }
       
-      // ログイン時のみフォームデータ形式に変換
+      // ログインモード（POSTのみ想定）のときは Form 形式
       if (mode === 'login') {
         headers['Content-Type'] = 'application/x-www-form-urlencoded';
         const formData = new URLSearchParams();
@@ -61,13 +64,14 @@ async function handleRequest(request: Request, method: string) {
         formData.append('password', body.password);
         requestBody = formData.toString();
       } else {
-        // 💡 綺麗に整形されたオブジェクトを、1回だけ正しく文字列化して送信
+        // 💡 通常の POST や、今回の PUT はすべてここを通る
+        // JSON形式として正しい文字列にして requestBody に格納する
         headers['Content-Type'] = 'application/json';
         requestBody = JSON.stringify(body);
       }
     }
 
-    // 🚀 Next.jsの裏側（コンテナ間）でFastAPIと安全に通信
+    // 🚀 これで method='PUT' のときも requestBody がしっかり fetch に渡されます！
     const res = await fetch(backendUrl, {
       method: method,
       headers: headers,

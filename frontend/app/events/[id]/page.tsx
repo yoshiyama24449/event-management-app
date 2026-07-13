@@ -33,6 +33,9 @@ export default function EventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // 💡 追加：現在ログインしているユーザーのIDを管理する状態
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+
   // コメント・返信入力用の状態
   const [commentContent, setCommentContent] = useState('');
   const [replyTargetId, setReplyTargetId] = useState<number | null>(null); // 返信対象の親コメントID
@@ -44,6 +47,26 @@ export default function EventDetailPage() {
     router.push('/');
   };
 
+  // 💡 追加：JWTトークンからuser_idをデコードして抽出するヘルパー
+  const getUserIdFromToken = (token: string): number | null => {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const payload = JSON.parse(jsonPayload);
+
+      // バックエンドのトークン生成ロジックに応じて、'user_id' や 'sub' など適切なキーを指定してください
+      return payload.user_id ? Number(payload.user_id) : null;
+    } catch (e) {
+      return null;
+    }
+  };
+
   // 1. イベント詳細・コメント・登録ステータスのデータ一括取得
   const fetchData = async () => {
     const token = localStorage.getItem('token');
@@ -51,6 +74,10 @@ export default function EventDetailPage() {
       router.push('/');
       return;
     }
+
+    // 💡 トークンから自分のユーザーIDを特定してセット
+    const uid = getUserIdFromToken(token);
+    setCurrentUserId(uid);
 
     try {
       // 💡 すべて万能中継API経由に変更
@@ -93,6 +120,31 @@ export default function EventDetailPage() {
       fetchData();
     }
   }, [eventId]);
+
+  // 💡 追加：イベント削除処理
+  const handleDeleteEvent = async () => {
+    if (!confirm('本当にこのイベントを削除しますか？')) return;
+    
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`/api/auth?path=/events/${eventId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.detail || 'イベントの削除に失敗しました。');
+      }
+
+      alert('イベントを削除しました。');
+      router.push('/events'); // 一覧画面に戻す
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
 
   // 2. 参加登録・ブックマークのステータス変更処理
   const handleStatusChange = async (statusType: 'attending' | 'bookmark' | 'none') => {
@@ -196,6 +248,9 @@ export default function EventDetailPage() {
     );
   }
 
+  // 💡 判定：現在ログインしているユーザーがこのイベントの作成者かどうか
+  const isCreator = currentUserId !== null && currentUserId === event.creator_id;
+
   // 親コメントだけを抽出
   const parentComments = comments.filter(c => c.parent_id === null);
 
@@ -238,7 +293,24 @@ export default function EventDetailPage() {
             </div>
 
             {/* アクションボタン（参加・ブックマーク） */}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* 💡 追加：作成者の場合のみ「編集」「削除」ボタンを表示する */}
+              {isCreator && (
+                <div className="flex gap-2 mr-4 border-r pr-4 border-gray-200">
+                  <button
+                    onClick={() => router.push(`/events/${event.id}/edit`)} // 編集ページがある場合
+                    className="cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                  >
+                    📝 編集
+                  </button>
+                  <button
+                    onClick={handleDeleteEvent}
+                    className="cursor-pointer bg-red-50 hover:bg-red-100 text-red-600 px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                  >
+                    🗑️ 削除
+                  </button>
+                </div>
+              )}
               <button
                 onClick={() => handleStatusChange(myStatus === 'attending' ? 'none' : 'attending')}
                 className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold transition-all ${

@@ -51,6 +51,9 @@ class EventUpdate(EventBase):
 
 class EventResponse(EventBase):
     id: int
+    creator_id: (
+        int  # 👈 💡 これを追記して、作成者ユーザーIDをフロントに返すようにします！
+    )
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

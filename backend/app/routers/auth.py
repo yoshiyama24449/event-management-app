@@ -69,7 +69,7 @@ def login(
         )
 
     # 3. 認証成功：JWTアクセストークンを作成（トークンの中にユーザー名を含める）
-    access_token = create_access_token(data={"sub": user.username})
+    access_token = create_access_token(data={"sub": user.username, "user_id": user.id})
 
     # 4. フロントエンド（Next.js）が扱いやすいWeb標準の形式でトークンを返す
     return {"access_token": access_token, "token_type": "bearer"}
