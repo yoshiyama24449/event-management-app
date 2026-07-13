@@ -31,11 +31,7 @@ if not DATABASE_URL:
 # =========================================================================
 # 【エンジン】データベースへの「物理的な接続ルート」を確立します。
 # 実際の通信やSQLの発行は、このエンジンが裏側ですべて管理してくれます。
-# 【エンジン作成】SQLiteの場合だけ、マルチスレッド用の特殊な引数を足す
-if DATABASE_URL.startswith("sqlite"):
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-else:
-    engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL)
 
 # 【セッション】データベースを操作するための「1回分の作業窓口」を作る工場です。
 #  - autocommit=False : データの保存を自動で行わず、明示的に「commit（確定）」を要求する安全設定。
