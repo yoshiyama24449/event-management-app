@@ -62,6 +62,9 @@ class EventResponse(EventBase):
     )
     created_at: datetime
 
+    # 💡 追記: 現在の参加者数を返すフィールドを追加（デフォルト0）
+    attendee_count: int = 0
+
     # 💡 イベントに紐付いているタグのリストを解決する設定
     tags: List[TagResponse] = []
 
