@@ -176,7 +176,7 @@ export default function EventEditPage() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-4">
-        <p className="text-red-500 font-bold">{error}</p>
+        <p className="cursor-pointer text-red-500 font-bold">{error}</p>
         <button onClick={() => router.push(`/events/${eventId}`)} className="text-sm text-indigo-600 hover:underline">
           詳細画面に戻る
         </button>
@@ -191,7 +191,7 @@ export default function EventEditPage() {
           <h1 className="text-xl font-bold text-gray-900">📝 イベントの編集</h1>
           <button
             onClick={() => router.push(`/events/${eventId}`)}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="cursor-pointer text-sm text-gray-500 hover:text-gray-700"
           >
             キャンセル
           </button>
@@ -317,7 +317,7 @@ export default function EventEditPage() {
             <button
               type="submit"
               disabled={updateLoading}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
+              className="cursor-pointer w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold py-2.5 px-4 rounded-lg transition-colors shadow-sm disabled:opacity-50"
             >
               {updateLoading ? '保存中...' : '変更を保存する'}
             </button>
