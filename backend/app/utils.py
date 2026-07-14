@@ -38,13 +38,18 @@ def create_access_token(data: dict) -> str:
 from fastapi.security import OAuth2PasswordBearer
 from fastapi import Depends, HTTPException, status
 import jwt
+from sqlalchemy.orm import Session
+from .database import get_db, UserModel
 
 # フロントがトークンを「Authorization: Bearer <トークン>」というヘッダーで送ってくることを定義
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
-def get_current_user_name(token: str = Depends(oauth2_scheme)) -> str:
-    """JWTトークンを検証し、ログイン中のユーザー名を返す関数"""
+def get_current_user_name(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)  # 👈 💡 db セッションを注入
+) -> str:
+    """JWTトークンを検証し、さらにDBにユーザーが実在するか確認してユーザー名を返す関数"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="ログイン認証に失敗しました。再度ログインしてください。",
@@ -56,6 +61,12 @@ def get_current_user_name(token: str = Depends(oauth2_scheme)) -> str:
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
+            
+        # 💡 【要件クリア】データベースにユーザーが今も実在するかを厳格にチェック
+        user_exists = db.query(UserModel).filter(UserModel.username == username).first()
+        if not user_exists:
+            raise credentials_exception
+            
         return username
     except jwt.PyJWTError:
         raise credentials_exception
