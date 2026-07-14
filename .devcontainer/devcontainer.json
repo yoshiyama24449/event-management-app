@@ -1,0 +1,14 @@
+{
+  "name": "Kubernetes Event App (Fast Startup)",
+  // Codespaces標準の爆速イメージをそのまま使う
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-kubernetes-tools.vscode-kubernetes-tools", // k8s用の便利GUI・補完
+        "redhat.vscode-yaml"                           // YAMLの入力補完
+      ]
+    }
+  }
+}
