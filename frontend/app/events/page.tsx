@@ -1,27 +1,65 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+
+interface Tag {
+  name: string;
+}
 
 interface EventItem {
   id: number;
   title: string;
+  description: string;
+  location: string;
   capacity: number;
   start_time: string;
   end_time: string;
   creator_id: number;
   created_at: string;
+  tag_names: string[];
+  attendee_count: number;
 }
 
-export default function EventsPage() {
+// 💡 メインロジックを別コンポーネントに切り出し
+function EventsList() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [events, setEvents] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // 💡 ページネーションと表示件数（limit）の状態管理
-  const [page, setPage] = useState<number>(1);
-  const [limit, setLimit] = useState<number>(12); // 初期値は3列で綺麗な 12件
+  // 💡 タグ選択ポップアップの開閉管理
+  const [isTagModalOpen, setIsTagModalOpen] = useState(false);
+
+  // 💡 ページネーションと件数の状態管理
+  const [page, setPage] = useState<number>(() => {
+    return Number(searchParams.get('page')) || 1;
+  });
+  const [limit, setLimit] = useState<number>(() => {
+    return Number(searchParams.get('limit')) || 12;
+  });
+
+  // 💡 高度なフィルター用の状態管理
+  const [searchQuery, setSearchQuery] = useState(() => {
+    return searchParams.get('q') || '';
+  });
+  const [selectedTag, setSelectedTag] = useState(() => {
+    return searchParams.get('tag') || '';
+  });
+  const [filterStartDate, setFilterStartDate] = useState(() => {
+    return searchParams.get('start_date') || '';
+  });
+  const [filterEndDate, setFilterEndDate] = useState(() => {
+    return searchParams.get('end_date') || '';
+  });
+  
+  // 💡 「終了したイベントを表示しない」の初期値判定
+  const [hideFinished, setHideFinished] = useState<boolean>(() => {
+    const val = searchParams.get('hide_finished');
+    return val !== 'false';
+  });
 
   // イベント作成フォームの状態管理
   const [title, setTitle] = useState('');
@@ -34,15 +72,68 @@ export default function EventsPage() {
   const [endDate, setEndDate] = useState('');
   const [endHour, setEndHour] = useState('17');
   const [endMinute, setEndMinute] = useState('00');
+  const [tagsInput, setTagsInput] = useState('');
   const [createError, setCreateError] = useState('');
   const [createLoading, setCreateLoading] = useState(false);
+
+  // 定義済みの主要タグリスト
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+
+  // 💡 安全に動的タグをマージするフェッチ関数
+  const fetchTags = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/auth?path=%2Fevents%2Ftags', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      if (res.ok) {
+        const tagsData = await res.json();
+        console.log("取得したタグデータ:", tagsData);
+
+        if (Array.isArray(tagsData)) {
+          setAvailableTags((prev) => {
+            const combined = [...prev, ...tagsData];
+            return Array.from(new Set(combined));
+          });
+        }
+      } else {
+        console.warn(`タグのフェッチに失敗しました (ステータス: ${res.status})`);
+      }
+    } catch (err) {
+      console.error('動的タグの取得に失敗しました。デフォルトのタグのみ表示します。', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchTags();
+  }, []);
 
   const handleLogout = () => {
     localStorage.clear();
     router.push('/');
   };
 
-  // トークンの取得と一覧の読み込み（💡 page と limit が変わるたびに呼び出される）
+  // 💡 ページ、表示件数、またはフィルター条件が変わったら自動的に再フェッチ
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (page !== 1) params.set('page', String(page));
+    if (limit !== 12) params.set('limit', String(limit));
+    if (searchQuery.trim()) params.set('q', searchQuery.trim());
+    if (selectedTag) params.set('tag', selectedTag);
+    if (filterStartDate) params.set('start_date', filterStartDate);
+    if (filterEndDate) params.set('end_date', filterEndDate);
+    params.set('hide_finished', String(hideFinished));
+
+    router.replace(`/events?${params.toString()}`);
+  }, [page, limit, searchQuery, selectedTag, filterStartDate, filterEndDate, hideFinished]);
+
+  // 💡 APIからイベント一覧を読み込む関数
   const fetchEvents = async () => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -52,8 +143,25 @@ export default function EventsPage() {
 
     setLoading(true);
     try {
-      // 💡 パラメータのエスケープを行い、バックエンドへ正確にpage/per_pageを届ける[cite: 3, 4]
-      const targetPath = encodeURIComponent(`/events?page=${page}&per_page=${limit}`);
+      const params = new URLSearchParams();
+      params.append('page', String(page));
+      params.append('per_page', String(limit));
+      params.append('hide_finished', String(hideFinished));
+
+      if (searchQuery.trim()) params.append('q', searchQuery.trim());
+      if (selectedTag) params.append('tag', selectedTag);
+      
+      if (filterStartDate) {
+        const startIso = new Date(filterStartDate).toISOString();
+        params.append('start_date', startIso);
+      }
+      if (filterEndDate) {
+        const endTarget = new Date(filterEndDate);
+        endTarget.setHours(23, 59, 59, 999);
+        params.append('end_date', endTarget.toISOString());
+      }
+
+      const targetPath = encodeURIComponent(`/events?${params.toString()}`);
       const res = await fetch(`/api/auth?path=${targetPath}`, {
         method: 'GET',
         headers: {
@@ -70,8 +178,7 @@ export default function EventsPage() {
       }
 
       const data = await res.json();
-      
-      // 💡 もし「次のページ」に進んだ結果、データが空っぽだった場合は自動的に前のページに戻す
+
       if (data.length === 0 && page > 1) {
         alert('これ以上のイベントはありません。');
         setPage((prev) => prev - 1);
@@ -86,15 +193,28 @@ export default function EventsPage() {
     }
   };
 
-  // 💡 page または limit が変更されたら、自動で再フェッチ
   useEffect(() => {
     fetchEvents();
-  }, [page, limit]);
+  }, [page, limit, selectedTag, hideFinished]);
 
-  // 表示件数（limit）が変更されたときの処理
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPage(1);
+    fetchEvents();
+  };
+
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedTag('');
+    setFilterStartDate('');
+    setFilterEndDate('');
+    setHideFinished(true);
+    setPage(1);
+  };
+
   const handleLimitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setLimit(Number(e.target.value));
-    setPage(1); // 💡 表示件数が変わったら、混乱を防ぐため必ず1ページ目に戻す[cite: 3]
+    setPage(1);
   };
 
   const handleCreateEvent = async (e: React.FormEvent) => {
@@ -119,6 +239,11 @@ export default function EventsPage() {
     endTarget.setHours(Number(endHour), Number(endMinute), 0, 0);
     const endIso = endTarget.toISOString();
 
+    const tagsArray = tagsInput
+      .split(',')
+      .map((t) => t.trim())
+      .filter((t) => t !== '');
+
     try {
       const res = await fetch('/api/auth?path=/events', {
         method: 'POST',
@@ -133,6 +258,7 @@ export default function EventsPage() {
           end_time: endIso,
           description,
           location,
+          tags: tagsArray,
         }),
       });
 
@@ -156,7 +282,11 @@ export default function EventsPage() {
       setStartMinute('00');
       setEndHour('17');
       setEndMinute('00');
+      setTagsInput('');
       alert('イベントを新しく作成しました！');
+
+      // 新規タグが即座にフィルターに並ぶようにタグ情報を再フェッチ
+      fetchTags();
       
       if (page === 1) {
         fetchEvents();
@@ -170,10 +300,13 @@ export default function EventsPage() {
     }
   };
 
+  const isEventFinished = (endTimeStr: string) => {
+    return new Date(endTimeStr).getTime() < new Date().getTime();
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      
-      {/* ナビゲーションバー (高さ固定) */}
+      {/* ナビゲーションバー */}
       <nav className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <span className="text-xl font-bold text-gray-900 tracking-tight cursor-pointer" onClick={() => router.push('/dashboard')}>
@@ -197,29 +330,133 @@ export default function EventsPage() {
       </nav>
 
       {/* メイングリッド */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0 overflow-hidden">
-        
-        {/* 左側：イベント一覧表示（2カラム） */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-4 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0 overflow-hidden">
+        {/* 左側：高度なフィルター ＆ イベント一覧表示 */}
         <div className="lg:col-span-2 flex flex-col h-full min-h-0">
-          
-          {/* 💡 ヘッダー部分に表示件数選択のプルダウンを追加 */}
+          {/* フィルターパネル */}
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm mb-4 flex-shrink-0">
+            <form onSubmit={handleSearchSubmit} className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">キーワード・場所</label>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="タイトル、場所など..."
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">イベント開催日（開始）</label>
+                  <input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={(e) => setFilterStartDate(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">イベント開催日（終了）</label>
+                  <input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={(e) => setFilterEndDate(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-gray-400 uppercase">フィルター:</span>
+                  
+                  {/* ① 「すべて」ボタン */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTag('')}
+                    className={`px-2.5 py-1 text-[10px] font-semibold rounded-full transition-colors cursor-pointer ${
+                      selectedTag === '' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    すべてのタグ
+                  </button>
+
+                  {/* ② タグモーダルを開くトリガーボタン */}
+                  <button
+                    type="button"
+                    onClick={() => setIsTagModalOpen(true)}
+                    className={`px-3 py-1 text-[10px] font-bold rounded-full border transition-all cursor-pointer flex items-center gap-1 ${
+                      selectedTag 
+                        ? 'bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100' 
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span>🏷️</span>
+                    {selectedTag ? `タグ: #${selectedTag}` : 'タグを選択する...'}
+                  </button>
+
+                  {/* ③ もしタグが選ばれていたらクイック解除できる「×」を表示 */}
+                  {selectedTag && (
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTag('')}
+                      className="text-[10px] text-gray-400 hover:text-red-500 font-bold transition-colors cursor-pointer"
+                      title="選択をクリア"
+                    >
+                      [解除 ✕]
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center space-x-3 ml-auto">
+                  <label className="flex items-center space-x-2 text-xs font-semibold text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hideFinished}
+                      onChange={(e) => {
+                        setHideFinished(e.target.checked);
+                        setPage(1);
+                      }}
+                      className="rounded text-indigo-600 focus:ring-indigo-500"
+                    />
+                    <span>終了したイベントを表示しない</span>
+                  </label>
+
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors shadow-sm"
+                  >
+                    検索を適用
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-bold rounded-lg transition-colors"
+                  >
+                    クリア
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* 表示件数選択 */}
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
-            <h2 className="text-xl font-bold text-gray-900">開催予定のイベント一覧</h2>
-            
+            <h2 className="text-lg font-bold text-gray-900">開催予定のイベント一覧</h2>
             <div className="flex items-center space-x-2">
               <label htmlFor="limit-select" className="text-xs text-gray-500 font-medium">
-                表示件数:
+                1ページの表示数:
               </label>
               <select
                 id="limit-select"
                 value={limit}
                 onChange={handleLimitChange}
-                className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                className="px-2 py-1 bg-white border border-gray-300 rounded-lg text-xs font-semibold text-gray-700 focus:outline-none cursor-pointer"
               >
-                <option value={6}>6件ずつ</option>
-                <option value={12}>12件ずつ</option>
-                <option value={24}>24件ずつ</option>
-                <option value={48}>48件ずつ</option>
+                <option value={6}>6件</option>
+                <option value={12}>12件</option>
+                <option value={24}>24件</option>
               </select>
             </div>
           </div>
@@ -230,7 +467,7 @@ export default function EventsPage() {
             </div>
           )}
 
-          {/* スクロール可能にするリストコンテナ */}
+          {/* イベントカード */}
           <div className="flex-1 overflow-y-auto pr-1 pb-4 min-h-0 scrollbar-thin">
             {loading ? (
               <div className="bg-white text-center py-12 rounded-xl border border-gray-200">
@@ -238,34 +475,81 @@ export default function EventsPage() {
               </div>
             ) : events.length === 0 ? (
               <div className="bg-white text-center py-12 rounded-xl border border-gray-200">
-                <p className="text-gray-500">現在募集中のイベントはありません。右のフォームから作成してみましょう！</p>
+                <p className="text-gray-500 font-medium">条件に一致する募集中のイベントはありません。</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
-                {events.map((event) => (
-                  <div key={event.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between h-44">
-                    <div>
-                      <h3 className="font-bold text-sm lg:text-base text-gray-800 line-clamp-2 mb-1.5 leading-snug">{event.title}</h3>
-                      <div className="text-[11px] lg:text-xs text-gray-500 space-y-0.5 mb-2">
-                        <p>🕒 開始: {new Date(event.start_time).toLocaleString('ja-JP')}</p>
-                        <p>⌛ 終了: {new Date(event.end_time).toLocaleString('ja-JP')}</p>
-                        <p>👥 定員上限: <span className="font-semibold text-gray-700">{event.capacity}人</span></p>
-                      </div>
-                    </div>
-                    
-                    <button
-                      onClick={() => router.push(`/events/${event.id}`)}
-                      className="cursor-pointer w-full text-center bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-semibold py-1.5 rounded-lg text-xs transition-colors mt-auto"
+                {events.map((event) => {
+                  const finished = isEventFinished(event.end_time);
+                  const isFull = event.attendee_count >= event.capacity;
+
+                  return (
+                    <div 
+                      key={event.id} 
+                      className={`bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between h-full min-h-[14rem] ${
+                        finished ? 'border-gray-200 bg-gray-50 opacity-80' : 'border-gray-200'
+                      }`}
                     >
-                      詳細・コメントを見る →
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex-1 flex flex-col">
+                        <div className="flex items-center justify-between mb-2.5 h-6 flex-shrink-0">
+                          {finished ? (
+                            <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded-md">
+                              終了しました
+                            </span>
+                          ) : isFull ? (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-bold rounded-md">
+                              満員御礼
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md">
+                              参加受付中
+                            </span>
+                          )}
+                        </div>
+
+                        <h3 className={`font-bold text-sm lg:text-base line-clamp-2 mb-2 leading-snug flex-shrink-0 ${finished ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                          {event.title}
+                        </h3>
+                        
+                        <div className="text-[11px] lg:text-xs text-gray-500 space-y-0.5 mb-3 flex-1">
+                          <p>📍 場所: <span className="font-medium text-gray-700">{event.location || '未設定'}</span></p>
+                          <p>🕒 開始: {new Date(event.start_time).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                          <p>⌛ 終了: {new Date(event.end_time).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                          <p>
+                            👥 参加状況: {' '}
+                            <span className={`font-semibold ${isFull && !finished ? 'text-amber-600' : 'text-gray-700'}`}>
+                              {event.attendee_count} / {event.capacity} 人
+                            </span>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1 mb-3 flex-shrink-0">
+                        {event.tag_names && event.tag_names.map((t) => (
+                          <span key={t} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-bold rounded-md">
+                            #{t}
+                          </span>
+                        ))}
+                      </div>
+                      
+                      <button
+                        onClick={() => router.push(`/events/${event.id}`)}
+                        className={`cursor-pointer w-full text-center font-semibold py-1.5 rounded-lg text-xs transition-colors mt-auto flex-shrink-0 ${
+                          finished 
+                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-500' 
+                            : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
+                        }`}
+                      >
+                        {finished ? '詳細・終了済みの履歴を確認 →' : '詳細・コメント・登録 →'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* ページネーションコントロール */}
+          {/* ページネーション */}
           {!loading && (
             <div className="flex items-center justify-between border-t border-gray-200 pt-3 mt-2 flex-shrink-0 bg-gray-50">
               <button
@@ -280,7 +564,6 @@ export default function EventsPage() {
               </span>
               <button
                 onClick={() => setPage((prev) => prev + 1)}
-                // 💡 データが1件もない、または現在のデータ取得件数が選んだlimitに満たない場合はボタンをロックして安全に防御
                 disabled={loading || events.length < limit}
                 className="cursor-pointer px-3 py-1.5 text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
@@ -290,7 +573,7 @@ export default function EventsPage() {
           )}
         </div>
 
-        {/* 右側：イベント新規作成フォーム */}
+        {/* 右側：作成フォーム */}
         <div className="h-full flex flex-col min-h-0">
           <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm h-full flex flex-col min-h-0">
             <h2 className="text-base font-bold text-gray-900 mb-3 pb-1.5 border-b flex-shrink-0">🚀 新しいイベントを企画</h2>
@@ -312,6 +595,18 @@ export default function EventsPage() {
                   placeholder="社内ハッカソン 2026"
                   className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 text-gray-900"
                 />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-700 uppercase mb-0.5">タグ付け (カンマ区切り)</label>
+                <input
+                  type="text"
+                  value={tagsInput}
+                  onChange={(e) => setTagsInput(e.target.value)}
+                  placeholder="Python, 勉強会, 初心者歓迎"
+                  className="w-full px-3 py-1.5 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 text-gray-900"
+                />
+                <span className="text-[10px] text-gray-400 block mt-0.5">カンマ「,」で区切ると、自動的に複数のタグが登録されます。</span>
               </div>
 
               <div>
@@ -348,6 +643,7 @@ export default function EventsPage() {
                 />
               </div>
 
+              {/* 📅 開始日時（インライン同期対応） */}
               <div>
                 <label className="block text-[10px] font-bold text-gray-700 uppercase mb-0.5">開始日時</label>
                 <div className="flex space-x-1.5">
@@ -355,7 +651,13 @@ export default function EventsPage() {
                     type="date"
                     required
                     value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setStartDate(val);
+                      if (!endDate) {
+                        setEndDate(val); // 💡 終了日が空なら同じ日をセット
+                      }
+                    }}
                     className="flex-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900"
                   />
                   <select
@@ -381,6 +683,7 @@ export default function EventsPage() {
                 </div>
               </div>
 
+              {/* 📅 終了日時（インライン同期対応） */}
               <div>
                 <label className="block text-[10px] font-bold text-gray-700 uppercase mb-0.5">終了日時</label>
                 <div className="flex space-x-1.5">
@@ -388,7 +691,13 @@ export default function EventsPage() {
                     type="date"
                     required
                     value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setEndDate(val);
+                      if (!startDate) {
+                        setStartDate(val); // 💡 開始日が空なら同じ日をセット
+                      }
+                    }}
                     className="flex-1 px-2.5 py-1.5 border border-gray-300 rounded-lg text-xs text-gray-900 focus:ring-2 focus:ring-indigo-500"
                   />
                   <select
@@ -425,7 +734,91 @@ export default function EventsPage() {
           </div>
         </div>
 
+        {/* 🏷️ タグ選択ポップアップ（モーダル） */}
+        {isTagModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fadeIn">
+            <div className="absolute inset-0" onClick={() => setIsTagModalOpen(false)}></div>
+            
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-200 max-w-lg w-full mx-4 p-6 relative z-10 animate-scaleUp max-h-[80vh] flex flex-col">
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100 flex-shrink-0">
+                <h3 className="font-bold text-base text-gray-900 flex items-center gap-1.5">
+                  <span>🏷️</span> タグで絞り込む
+                </h3>
+                <button 
+                  onClick={() => setIsTagModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="py-4 overflow-y-auto min-h-[10rem] max-h-[50vh] scrollbar-thin">
+                <p className="text-xs text-gray-400 mb-3">
+                  現在登録されているすべてのタグです。選択すると瞬時に一覧が絞り込まれます。
+                </p>
+                
+                <div className="flex flex-wrap gap-2">
+                  {availableTags.length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4 w-full">タグが登録されていません。</p>
+                  ) : (
+                    availableTags.map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTag(t);
+                          setPage(1);
+                          setIsTagModalOpen(false);
+                        }}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer border ${
+                          selectedTag === t 
+                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' 
+                            : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        #{t}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex justify-between items-center flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTag('');
+                    setIsTagModalOpen(false);
+                  }}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                >
+                  選択をクリア
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsTagModalOpen(false)}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-sm"
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
+  );
+}
+
+// 💡 2. デフォルトエクスポートする EventsPage は、EventsList を Suspense で包むだけにします
+export default function EventsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <p className="text-gray-500 font-medium animate-pulse">読み込み中...</p>
+      </div>
+    }>
+      <EventsList />
+    </Suspense>
   );
 }

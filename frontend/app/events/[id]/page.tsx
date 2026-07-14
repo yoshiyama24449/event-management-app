@@ -6,10 +6,13 @@ import { useRouter, useParams } from 'next/navigation';
 interface EventDetail {
   id: number;
   title: string;
+  description: string | null;
+  location: string | null;
   capacity: number;
   start_time: string;
   end_time: string;
   creator_id: number;
+  attendee_count: number; // 💡 追記：現在の参加者数
 }
 
 interface CommentItem {
@@ -25,29 +28,25 @@ interface CommentItem {
 export default function EventDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const eventId = params.id; // URLからイベントIDを取得
+  const eventId = params.id;
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [comments, setComments] = useState<CommentItem[]>([]);
-  const [myStatus, setMyStatus] = useState<string>('none'); // 'attending', 'bookmark', 'none'
+  const [myStatus, setMyStatus] = useState<string>('none');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // 💡 追加：現在ログインしているユーザーのIDを管理する状態
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
-  // コメント・返信入力用の状態
   const [commentContent, setCommentContent] = useState('');
-  const [replyTargetId, setReplyTargetId] = useState<number | null>(null); // 返信対象の親コメントID
+  const [replyTargetId, setReplyTargetId] = useState<number | null>(null);
   const [replyContent, setReplyContent] = useState('');
 
-  // 💡 ログアウト処理を追加
   const handleLogout = () => {
     localStorage.clear();
     router.push('/');
   };
 
-  // 💡 追加：JWTトークンからuser_idをデコードして抽出するヘルパー
   const getUserIdFromToken = (token: string): number | null => {
     try {
       const base64Url = token.split('.')[1];
@@ -59,15 +58,12 @@ export default function EventDetailPage() {
           .join('')
       );
       const payload = JSON.parse(jsonPayload);
-
-      // バックエンドのトークン生成ロジックに応じて、'user_id' や 'sub' など適切なキーを指定してください
       return payload.user_id ? Number(payload.user_id) : null;
     } catch (e) {
       return null;
     }
   };
 
-  // 1. イベント詳細・コメント・登録ステータスのデータ一括取得
   const fetchData = async () => {
     const token = localStorage.getItem('token');
     if (!token) {
@@ -75,13 +71,10 @@ export default function EventDetailPage() {
       return;
     }
 
-    // 💡 トークンから自分のユーザーIDを特定してセット
     const uid = getUserIdFromToken(token);
     setCurrentUserId(uid);
 
     try {
-      // 💡 すべて万能中継API経由に変更
-      // (A) イベント詳細の取得
       const eventRes = await fetch(`/api/auth?path=/events/${eventId}`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -89,7 +82,6 @@ export default function EventDetailPage() {
       const eventData = await eventRes.json();
       setEvent(eventData);
 
-      // (B) コメント一覧の取得
       const commentsRes = await fetch(`/api/auth?path=/events/${eventId}/comments`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -98,7 +90,6 @@ export default function EventDetailPage() {
         setComments(commentsData);
       }
 
-      // (C) 登録ステータスの初期チェック
       const dashRes = await fetch('/api/auth?path=/dashboard', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -121,7 +112,6 @@ export default function EventDetailPage() {
     }
   }, [eventId]);
 
-  // 💡 追加：イベント削除処理
   const handleDeleteEvent = async () => {
     if (!confirm('本当にこのイベントを削除しますか？')) return;
     
@@ -140,19 +130,17 @@ export default function EventDetailPage() {
       }
 
       alert('イベントを削除しました。');
-      router.push('/events'); // 一覧画面に戻す
+      router.push('/events');
     } catch (err: any) {
       alert(err.message);
     }
   };
 
-  // 2. 参加登録・ブックマークのステータス変更処理
   const handleStatusChange = async (statusType: 'attending' | 'bookmark' | 'none') => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
     try {
-      // 💡 ステータスが 'none'（解除）なら DELETE、それ以外（参加/ブックマーク）なら POST にする
       const isDelete = statusType === 'none';
       const method = isDelete ? 'DELETE' : 'POST';
       const res = await fetch(`/api/auth?path=/events/${eventId}/register`, {
@@ -161,7 +149,6 @@ export default function EventDetailPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        // 💡 DELETE のときはボディ（データ）を送らない
         body: isDelete ? undefined : JSON.stringify({ status: statusType }),
       });
 
@@ -172,13 +159,12 @@ export default function EventDetailPage() {
 
       setMyStatus(statusType);
       alert(statusType === 'none' ? '登録を解除しました。' : 'ステータスを更新しました！');
-      fetchData(); // 参加者一覧データなどが変わる可能性があるため再取得
+      fetchData();
     } catch (err: any) {
       alert(err.message || '通信エラーが発生しました。');
     }
   };
 
-  // 3. 親コメントの新規投稿
   const handlePostComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!commentContent.trim()) return;
@@ -197,13 +183,12 @@ export default function EventDetailPage() {
       if (!res.ok) throw new Error('コメントの投稿に失敗しました。');
       
       setCommentContent('');
-      fetchData(); // リロードして一覧を更新
+      fetchData();
     } catch (err: any) {
       alert(err.message);
     }
   };
 
-  // 4. コメントへの「返信」投稿
   const handlePostReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyContent.trim() || replyTargetId === null) return;
@@ -248,10 +233,9 @@ export default function EventDetailPage() {
     );
   }
 
-  // 💡 判定：現在ログインしているユーザーがこのイベントの作成者かどうか
   const isCreator = currentUserId !== null && currentUserId === event.creator_id;
-
-  // 親コメントだけを抽出
+  const finished = new Date(event.end_time).getTime() < new Date().getTime();
+  const isFull = event.attendee_count >= event.capacity;
   const parentComments = comments.filter(c => c.parent_id === null);
 
   return (
@@ -269,10 +253,7 @@ export default function EventDetailPage() {
             <button onClick={() => router.push('/events')} className="cursor-pointer text-sm text-gray-600 hover:text-indigo-600 font-medium">
               イベント一覧
             </button>
-            <button
-              onClick={handleLogout}
-              className="cursor-pointer text-sm text-gray-500 hover:text-red-600 font-medium transition-colors"
-            >
+            <button onClick={handleLogout} className="cursor-pointer text-sm text-gray-500 hover:text-red-600 font-medium transition-colors">
               ログアウト
             </button>
           </div>
@@ -282,57 +263,118 @@ export default function EventDetailPage() {
       {/* メインレイアウト */}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
         
-        {/* イベント詳細カード */}
+        {/* 💡 劇的改修：タイトルとアクションボタンを行分け（縦並び）にした詳細ヘッダーカード */}
         <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b pb-4 mb-4 gap-4">
-            <div>
-              <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-full">イベント詳細</span>
-              <h1 className="text-2xl font-extrabold text-gray-900 mt-2">{event.title}</h1>
-              <p className="text-xs text-gray-400 mt-1">🕒 開催期間: {new Date(event.start_time).toLocaleString('ja-JP')} 〜 {new Date(event.end_time).toLocaleString('ja-JP')}</p>
-              <p className="text-xs text-gray-500">👥 定員枠: 最大 {event.capacity} 名</p>
+          <div className="flex flex-col space-y-4">
+            
+            {/* 1行目：ステータスバッジ */}
+            <div className="flex items-center">
+              {finished ? (
+                <span className="px-2.5 py-0.5 bg-red-100 text-red-700 text-xs font-bold rounded-md">
+                  終了しました
+                </span>
+              ) : isFull ? (
+                <span className="px-2.5 py-0.5 bg-amber-100 text-amber-700 text-xs font-bold rounded-md animate-pulse">
+                  満員御礼
+                </span>
+              ) : (
+                <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-700 text-xs font-bold rounded-md">
+                  参加受付中
+                </span>
+              )}
             </div>
 
-            {/* アクションボタン（参加・ブックマーク） */}
-            <div className="flex flex-wrap gap-2 items-center">
-              {/* 💡 追加：作成者の場合のみ「編集」「削除」ボタンを表示する */}
-              {isCreator && (
-                <div className="flex gap-2 mr-4 border-r pr-4 border-gray-200">
+            {/* 2行目：イベントタイトル（ここだけで独立させて1行を贅沢に使用） */}
+            <div>
+              <h1 className={`text-xl md:text-3xl font-extrabold tracking-tight leading-snug ${
+                finished ? 'text-gray-400 line-through' : 'text-gray-900'
+              }`}>
+                {event.title}
+              </h1>
+            </div>
+
+            {/* 3行目：詳細日時・場所・リアル参加状況の表示 */}
+            <div className="text-xs md:text-sm text-gray-500 space-y-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
+              <p>📍 <strong>開催場所:</strong> <span className="text-gray-800 font-medium">{event.location || '未設定'}</span></p>
+              <p>🕒 <strong>開催期間:</strong> <span className="text-gray-800 font-medium">
+                {new Date(event.start_time).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 
+                &nbsp;〜&nbsp;
+                {new Date(event.end_time).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+              </span></p>
+              <p>👥 <strong>参加状況:</strong> <span className={`font-bold ${isFull && !finished ? 'text-amber-600' : 'text-indigo-600'}`}>{event.attendee_count} / {event.capacity} 人</span></p>
+              {event.description && (
+                <div className="pt-2 border-t border-gray-200 mt-2 text-gray-700 text-xs md:text-sm leading-relaxed whitespace-pre-wrap">
+                  {event.description}
+                </div>
+              )}
+            </div>
+
+            {/* 4行目：アクションボタンエリア（行を完全に分離） */}
+            <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100 w-full">
+              
+              {/* 💡 一般参加者用アクション：イベントが終了していない場合のみ操作可能 */}
+              {!finished ? (
+                <>
                   <button
-                    onClick={() => router.push(`/events/${event.id}/edit`)} // 編集ページがある場合
-                    className="cursor-pointer bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                    onClick={() => handleStatusChange(myStatus === 'attending' ? 'none' : 'attending')}
+                    disabled={isFull && myStatus !== 'attending'}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition-all cursor-pointer ${
+                      myStatus === 'attending'
+                        ? 'bg-emerald-600 text-white hover:bg-emerald-700'
+                        : isFull
+                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-none'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    }`}
                   >
-                    📝 編集
+                    {myStatus === 'attending' ? '✓ 参加登録済み' : isFull ? '🚫 満員（受付停止）' : '🙋 このイベントに参加する'}
+                  </button>
+
+                  <button
+                    onClick={() => handleStatusChange(myStatus === 'bookmark' ? 'none' : 'bookmark')}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                      myStatus === 'bookmark'
+                        ? 'bg-amber-500 border-amber-500 text-white hover:bg-amber-600'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    {myStatus === 'bookmark' ? '★ ブックマーク中' : '☆ ブックマークに追加'}
+                  </button>
+
+                  {myStatus !== 'none' && (
+                    <button
+                      onClick={() => handleStatusChange('none')}
+                      className="px-3 py-2 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                    >
+                      登録をキャンセル
+                    </button>
+                  )}
+                </>
+              ) : (
+                /* 💡 終了ガード：終了している場合はメッセージを表示 */
+                <p className="text-xs font-medium text-gray-400 py-1">
+                  ※このイベントは既に終了しているため、参加登録やブックマークの変更はできません。
+                </p>
+              )}
+
+              {/* 💡 主催者用アクション：自分が作ったイベントなら右端に綺麗に寄せる */}
+              {isCreator && (
+                <div className="flex items-center gap-2 sm:ml-auto w-full sm:w-auto justify-end pt-2 sm:pt-0">
+                  <button
+                    onClick={() => router.push(`/events/${event.id}/edit`)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-xs font-medium text-gray-700 bg-white hover:bg-gray-50 cursor-pointer transition-colors"
+                  >
+                    📝 編集する
                   </button>
                   <button
                     onClick={handleDeleteEvent}
-                    className="cursor-pointer bg-red-50 hover:bg-red-100 text-red-600 px-3 py-2 rounded-lg text-sm font-bold transition-all"
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-sm"
                   >
-                    🗑️ 削除
+                    🗑️ 削除する
                   </button>
                 </div>
               )}
-              <button
-                onClick={() => handleStatusChange(myStatus === 'attending' ? 'none' : 'attending')}
-                className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                  myStatus === 'attending'
-                    ? 'bg-green-600 text-white shadow-sm'
-                    : 'bg-gray-100 hover:bg-green-50 text-gray-700 hover:text-green-700'
-                }`}
-              >
-                {myStatus === 'attending' ? '✓ 参加予定' : '🙋 参加する'}
-              </button>
-
-              <button
-                onClick={() => handleStatusChange(myStatus === 'bookmark' ? 'none' : 'bookmark')}
-                className={`cursor-pointer px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                  myStatus === 'bookmark'
-                    ? 'bg-yellow-500 text-white shadow-sm'
-                    : 'bg-gray-100 hover:bg-yellow-50 text-gray-700 hover:text-yellow-600'
-                }`}
-              >
-                {myStatus === 'bookmark' ? '★ ブックマーク中' : '⭐ ブックマーク'}
-              </button>
             </div>
+
           </div>
         </div>
 
