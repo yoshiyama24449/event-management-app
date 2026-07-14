@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 
 # 各自のファイルから必要な部品をインポート（相対インポート）
-from ..database import get_db, EventModel, UserModel, TagModel, get_jst_now
+from ..database import get_db, EventModel, UserModel, TagModel, EventRegistrationModel, get_jst_now
 from ..schemas import EventCreate, EventUpdate, EventResponse
 from ..utils import get_current_user_name
 
@@ -36,6 +36,10 @@ def get_or_create_tags(db: Session, tag_names: List[str]) -> List[TagModel]:
 # API エンドポイントの実装
 # =========================================================================
 
+@router.get("/tags", response_model=List[str])
+def get_all_tags(db: Session = Depends(get_db)):
+    tags = db.query(TagModel).order_by(TagModel.name.asc()).all()
+    return [tag.name for tag in tags if tag.name is not None]
 
 # --- ① イベント登録（POST /events） ---
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -124,13 +128,27 @@ def get_events(
 
     # 5. 並び順とページネーション
     offset = (page - 1) * per_page
-    return (
+    db_events = (
         query.order_by(EventModel.start_time.asc())
         .offset(offset)
         .limit(per_page)
         .all()
     )
 
+    # 💡 追記：各イベントに紐づく実際の参加者数を集計してセットする
+    for event in db_events:
+        attend_count = (
+            db.query(EventRegistrationModel)
+            .filter(
+                EventRegistrationModel.event_id == event.id,
+                EventRegistrationModel.status == "attending"
+            )
+            .count()
+        )
+        # Pydanticレスポンス時に反映されるよう、動的に属性にセット
+        event.attendee_count = attend_count
+
+    return db_events
 
 # --- ③ イベント詳細取得（GET /events/{event_id}） ---
 @router.get("/{event_id}", response_model=EventResponse)
@@ -202,3 +220,4 @@ def delete_event(
     db.delete(db_event)
     db.commit()
     return {"status": "success", "message": f"Event {event_id} has been deleted."}
+
