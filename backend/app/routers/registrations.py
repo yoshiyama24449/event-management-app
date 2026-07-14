@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ..database import get_db, EventModel, UserModel, EventRegistrationModel
+from ..database import get_db, EventModel, UserModel, EventRegistrationModel, get_jst_now
 from ..schemas import RegistrationCreate, RegistrationResponse
 from ..utils import get_current_user_name
 
@@ -29,6 +29,23 @@ def register_event(
     if not event:
         raise HTTPException(
             status_code=404, detail="指定されたイベントが見つかりません。"
+        )
+
+    # =========================================================================
+    # 💡 【要件クリア】終了したイベントに対する参加・ブックマークの禁止ガード
+    # =========================================================================
+    now = get_jst_now()
+    event_end = event.end_time
+    # 片方がNaiveで、もう片方がAwareの場合の不整合を防ぐ
+    if event_end.tzinfo is not None and now.tzinfo is None:
+        event_end = event_end.replace(tzinfo=None)
+    elif event_end.tzinfo is None and now.tzinfo is not None:
+        now = now.replace(tzinfo=None)
+
+    if event_end < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="このイベントは既に終了しているため、参加登録やブックマークの追加はできません。"
         )
 
     # 3. すでに登録（参加 or ブックマーク）しているか確認

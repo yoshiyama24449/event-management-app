@@ -2,7 +2,7 @@
 from app.database import get_jst_now
 from pydantic import BaseModel, field_validator, Field, ConfigDict, computed_field
 from datetime import datetime
-from typing import Literal
+from typing import Literal, List
 
 # =========================================================================
 # Pydanticモデル（バリデーション ＆ データ構造の定義）
@@ -18,6 +18,8 @@ class EventBase(BaseModel):
     )  # 👈 追記（0より大きい整数）
     start_time: datetime  # フロントからは "2026-07-20T10:00:00+09:00" のようなISO形式
     end_time: datetime
+    # 💡 追記：タグ文字列のリストを基本構造に含める
+    tags: List[str] = Field(default=[], description="イベントに紐付くタグ名リスト")
 
 
 class EventCreate(EventBase):
@@ -48,6 +50,10 @@ class EventUpdate(EventBase):
                 raise ValueError("終了日時は開始日時より後の時間を指定してください。")
         return end_time
 
+# 💡 追記：レスポンス時にタグオブジェクトのネストを文字列リストに変換するためのカスタムモデル
+class TagResponse(BaseModel):
+    name: str
+    model_config = ConfigDict(from_attributes=True)
 
 class EventResponse(EventBase):
     id: int
@@ -55,6 +61,14 @@ class EventResponse(EventBase):
         int  # 👈 💡 これを追記して、作成者ユーザーIDをフロントに返すようにします！
     )
     created_at: datetime
+
+    # 💡 イベントに紐付いているタグのリストを解決する設定
+    tags: List[TagResponse] = []
+
+    # 💡 クライアントが扱いやすいシンプルな ["Python", "AWS"] 形式の配列を取り出せる計算フィールド
+    @computed_field
+    def tag_names(self) -> List[str]:
+        return [t.name for t in self.tags]
 
     model_config = ConfigDict(from_attributes=True)
 
