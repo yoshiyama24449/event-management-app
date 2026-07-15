@@ -119,3 +119,36 @@ def test_registration_finished_event_forbidden(authorized_client):
     )
     assert res.status_code == 400
     assert "このイベントは既に終了しているため" in res.json()["detail"]
+
+
+def test_registration_duplicate_same_status(authorized_client):
+    """【追加】すでに参加状態のときに、再度参加申請を送ってもレコードが重複せず冪等であること"""
+    start = get_jst_now() + timedelta(days=1)
+    end = start + timedelta(hours=2)
+
+    event_data = {
+        "title": "重複登録テスト",
+        "capacity": 5,
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+        "tags": [],
+    }
+    create_res = authorized_client.post("/events", json=event_data)
+    event_id = create_res.json()["id"]
+
+    # 1回目の参加登録
+    res1 = authorized_client.post(
+        f"/events/{event_id}/register", json={"status": "attending"}
+    )
+    assert res1.status_code == 201
+
+    # 2回目の参加登録（同じステータス）
+    res2 = authorized_client.post(
+        f"/events/{event_id}/register", json={"status": "attending"}
+    )
+    assert (
+        res2.status_code == 201
+    )  # 既存レコードの更新として201(または200)が返る[cite: 12]
+    assert (
+        res2.json()["id"] == res1.json()["id"]
+    )  # IDが同一（新規作成ではなく更新）であることを検証

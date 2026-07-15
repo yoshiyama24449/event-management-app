@@ -1,6 +1,8 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 
+from app.database import get_jst_now
+
 
 def test_comment_and_reply_flow(authorized_client):
     """① コメント投稿と返信、および一覧取得の正常系テスト"""
@@ -40,8 +42,13 @@ def test_comment_and_reply_flow(authorized_client):
     assert get_res.status_code == 200
     comments_list = get_res.json()
     assert len(comments_list) == 2
+
+    # 💡 追記：username が 'test_user' として正しく結合されて返ってきているか検証
     assert comments_list[0]["content"] == "最初の質問です。"
+    assert comments_list[0]["username"] == "test_user"  # 👈 これを検証！
+
     assert comments_list[1]["content"] == "質問に対する返信です。"
+    assert comments_list[1]["username"] == "test_user"  # 👈 これを検証！
 
 
 def test_comment_invalid_parent(authorized_client):
@@ -71,3 +78,43 @@ def test_comment_api_requires_login(client):
     # ログインしていない client で適当なイベントIDに投稿を試みる
     response = client.post("/events/1/comments", json={"content": "未ログイン投稿"})
     assert response.status_code == 401
+
+
+def test_comment_cannot_reply_to_reply(authorized_client):
+    """【追加】返信コメント（すでにparent_idを持つコメント）に対して、さらに返信することは禁止する"""
+    start = (get_jst_now() + timedelta(days=1)).isoformat()
+    end = (get_jst_now() + timedelta(days=1, hours=2)).isoformat()
+
+    event_data = {
+        "title": "コメントネストテスト",
+        "capacity": 10,
+        "start_time": start,
+        "end_time": end,
+    }
+    create_res = authorized_client.post("/events", json=event_data)
+    event_id = create_res.json()["id"]
+
+    # 1. 親コメントを投稿 (階層1)
+    res_parent = authorized_client.post(
+        f"/events/{event_id}/comments", json={"content": "親コメント"}
+    )
+    parent_id = res_parent.json()["id"]
+
+    # 2. 返信を投稿 (階層2)
+    res_reply = authorized_client.post(
+        f"/events/{event_id}/comments",
+        json={"content": "返信です", "parent_id": parent_id},
+    )
+    reply_id = res_reply.json()["id"]
+
+    # 3. 返信（階層2）に対して、さらに返信を試みる (階層3 ➔ 弾かれるべき)
+    res_grandchild = authorized_client.post(
+        f"/events/{event_id}/comments",
+        json={"content": "孫コメント（返信への返信）", "parent_id": reply_id},
+    )
+
+    # 💡 400 Bad Request を期待する
+    assert res_grandchild.status_code == 400
+    assert (
+        "返信に対してさらに返信することはできません" in res_grandchild.json()["detail"]
+    )

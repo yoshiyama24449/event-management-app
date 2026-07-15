@@ -45,6 +45,13 @@ def create_comment(
                 status_code=400, detail="返信対象のコメントが見つかりません。"
             )
 
+        # 💡 追記：親コメントがすでに '返信（parent_idがNullでない）' の場合は400エラーにする
+        if parent_comment.parent_id is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="返信に対してさらに返信することはできません（最大2階層まで）。",
+            )
+
     # 4. コメントをデータベースに保存
     db_comment = CommentModel(
         content=comment.content,

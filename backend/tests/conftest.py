@@ -3,6 +3,7 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
+from sqlalchemy import event  # 💡 追記
 
 # 1. 最初に環境変数をセット
 if "TEST_DATABASE_URL" not in os.environ:
@@ -22,6 +23,15 @@ if current_db_url.startswith("sqlite"):
         poolclass=StaticPool,
     )
     db_module.SessionLocal.configure(bind=db_module.engine)
+
+    # =========================================================================
+    # 💡 追記：SQLiteのコネクション確立時に外部キー制約を有効化する
+    # =========================================================================
+    @event.listens_for(db_module.engine, "connect")
+    def set_sqlite_pragma(dbapi_connection, connection_record):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 @pytest.fixture(scope="function", autouse=True)

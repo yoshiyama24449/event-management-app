@@ -67,9 +67,8 @@ class UserMinResponse(BaseModel):
 
 class EventResponse(EventBase):
     id: int
-    creator_id: (
-        int  # 👈 💡 これを追記して、作成者ユーザーIDをフロントに返すようにします！
-    )
+    # 💡 修正: 作成者が削除（SET NULL）された場合に備え、None を許容するようにします
+    creator_id: int | None = None  # 👈 Optionalにする
     created_at: datetime
 
     # 💡 追記: 現在の参加者数を返すフィールドを追加（デフォルト0）
