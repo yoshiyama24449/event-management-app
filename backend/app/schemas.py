@@ -2,7 +2,7 @@
 from app.database import get_jst_now
 from pydantic import BaseModel, field_validator, Field, ConfigDict, computed_field
 from datetime import datetime
-from typing import Literal, List
+from typing import Literal, List, Optional
 
 # =========================================================================
 # Pydanticモデル（バリデーション ＆ データ構造の定義）
@@ -57,6 +57,14 @@ class TagResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# 💡 追記：ユーザー情報の簡易的なレスポンス用スキーマを定義
+class UserMinResponse(BaseModel):
+    id: int
+    username: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class EventResponse(EventBase):
     id: int
     creator_id: (
@@ -69,6 +77,17 @@ class EventResponse(EventBase):
 
     # 💡 イベントに紐付いているタグのリストを解決する設定
     tags: List[TagResponse] = []
+
+    # 💡 追記：リレーション先である 'creator' オブジェクトを型定義に組み込む
+    # DBのON DELETE SET NULL制約により、作成者がNULLになる場合を想定して Optional (Noneを許容) にします
+    creator: Optional[UserMinResponse] = None
+
+    # 💡 追記: レスポンスに作成者の名前を含めるためのフィールド（作成者が削除されていた場合は None または '退会済みユーザー' になるよう考慮）
+    @computed_field
+    def creator_name(self) -> str:
+        if self.creator:
+            return self.creator.username
+        return "不明（退会済み）"
 
     # 💡 クライアントが扱いやすいシンプルな ["Python", "AWS"] 形式の配列を取り出せる計算フィールド
     @computed_field

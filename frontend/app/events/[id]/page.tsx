@@ -12,6 +12,7 @@ interface EventDetail {
   start_time: string;
   end_time: string;
   creator_id: number;
+  creator_name: string; // 💡 追記
   attendee_count: number; // 💡 追記：現在の参加者数
 }
 
@@ -295,6 +296,7 @@ export default function EventDetailPage() {
 
             {/* 3行目：詳細日時・場所・リアル参加状況の表示 */}
             <div className="text-xs md:text-sm text-gray-500 space-y-1 bg-gray-50 p-3 rounded-lg border border-gray-100">
+              <p>👤 <strong>企画者・作成者:</strong> <span className="text-gray-800 font-bold">{event.creator_name}</span> {isCreator && <span className="text-indigo-600 font-semibold">(あなた)</span>}</p>
               <p>📍 <strong>開催場所:</strong> <span className="text-gray-800 font-medium">{event.location || '未設定'}</span></p>
               <p>🕒 <strong>開催期間:</strong> <span className="text-gray-800 font-medium">
                 {new Date(event.start_time).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 

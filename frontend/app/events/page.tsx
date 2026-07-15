@@ -16,6 +16,7 @@ interface EventItem {
   start_time: string;
   end_time: string;
   creator_id: number;
+  creator_name: string; // 💡 追記
   created_at: string;
   tag_names: string[];
   attendee_count: number;
@@ -512,6 +513,7 @@ function EventsList() {
                         </h3>
                         
                         <div className="text-[11px] lg:text-xs text-gray-500 space-y-0.5 mb-3 flex-1">
+                          <p>👤 企画者: <span className="font-semibold text-gray-700">{event.creator_name}</span></p>
                           <p>📍 場所: <span className="font-medium text-gray-700">{event.location || '未設定'}</span></p>
                           <p>🕒 開始: {new Date(event.start_time).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                           <p>⌛ 終了: {new Date(event.end_time).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>

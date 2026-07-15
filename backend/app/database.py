@@ -121,6 +121,12 @@ class EventModel(Base):
         lazy="selectin",  # 👈 クエリ時に自動的にタグ情報も引っ張ってくるための魔法
     )
 
+    creator = relationship(
+        "UserModel",
+        foreign_keys=[creator_id],
+        lazy="selectin",  # 自動的にリレーション先を結合して取得する設定
+    )
+
 
 # =========================================================================
 # 💡 追加：タグ情報を保存するORMモデル
