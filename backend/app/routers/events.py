@@ -5,7 +5,14 @@ from typing import List, Optional
 from datetime import datetime
 
 # 各自のファイルから必要な部品をインポート（相対インポート）
-from ..database import get_db, EventModel, UserModel, TagModel, EventRegistrationModel, get_jst_now
+from ..database import (
+    get_db,
+    EventModel,
+    UserModel,
+    TagModel,
+    EventRegistrationModel,
+    get_jst_now,
+)
 from ..schemas import EventCreate, EventUpdate, EventResponse
 from ..utils import get_current_user_name
 
@@ -14,6 +21,7 @@ router = APIRouter(
     prefix="/events",  # 💡 このルーター内のすべてのURLの先頭に「/events」を自動付与します
     tags=["Events"],  # 💡 Swagger UI（APIドキュメント）でグループ分けされる見出し名
 )
+
 
 # 💡 タグをDBから探す、無ければ新規作成して紐付けるヘルパー関数
 def get_or_create_tags(db: Session, tag_names: List[str]) -> List[TagModel]:
@@ -32,14 +40,20 @@ def get_or_create_tags(db: Session, tag_names: List[str]) -> List[TagModel]:
         tags.append(tag)
     return tags
 
+
 # =========================================================================
 # API エンドポイントの実装
 # =========================================================================
 
+
 @router.get("/tags", response_model=List[str])
-def get_all_tags(db: Session = Depends(get_db)):
+def get_all_tags(
+    db: Session = Depends(get_db),
+    current_username: str = Depends(get_current_user_name),
+):
     tags = db.query(TagModel).order_by(TagModel.name.asc()).all()
     return [tag.name for tag in tags if tag.name is not None]
+
 
 # --- ① イベント登録（POST /events） ---
 @router.post("", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
@@ -71,7 +85,7 @@ def create_event(
     # 💡 タグの紐付け
     if event.tags:
         db_event.tags = get_or_create_tags(db, event.tags)
-    
+
     db.add(db_event)
     db.commit()
     db.refresh(db_event)
@@ -84,11 +98,19 @@ def get_events(
     db: Session = Depends(get_db),
     page: int = Query(1, ge=1, description="取得するページ番号（1始まり）"),
     per_page: int = Query(10, ge=1, le=100, description="1ページあたりの取得件数"),
-    q: Optional[str] = Query(None, description="タイトル、または場所のキーワード部分一致検索"),
+    q: Optional[str] = Query(
+        None, description="タイトル、または場所のキーワード部分一致検索"
+    ),
     tag: Optional[str] = Query(None, description="タグ名による完全一致検索"),
-    start_date: Optional[datetime] = Query(None, description="イベント開始日時の範囲指定（下限）"),
-    end_date: Optional[datetime] = Query(None, description="イベント開始日時の範囲指定（上限）"),
-    hide_finished: bool = Query(True, description="終了済みのイベントを非表示にする（デフォルトTrue）"),
+    start_date: Optional[datetime] = Query(
+        None, description="イベント開始日時の範囲指定（下限）"
+    ),
+    end_date: Optional[datetime] = Query(
+        None, description="イベント開始日時の範囲指定（上限）"
+    ),
+    hide_finished: bool = Query(
+        True, description="終了済みのイベントを非表示にする（デフォルトTrue）"
+    ),
     current_username: str = Depends(get_current_user_name),
 ):
     """イベント一覧をフィルタリング・ページネーション付きで取得する（開始日時の昇順）"""
@@ -100,7 +122,7 @@ def get_events(
         # 💡 SQLiteでも問題なく動くように、タイムゾーン情報を持たない形で比較
         if now.tzinfo is not None:
             now = now.replace(tzinfo=None)
-        
+
         # SQLAの比較時にDB側がNaiveとして保存されている場合に備え
         # 開始・終了時刻データにタイムゾーン情報がない状態（SQLiteの特性）を想定
         query = query.filter(EventModel.end_time >= now)
@@ -120,7 +142,7 @@ def get_events(
         if start_date.tzinfo is not None:
             start_date = start_date.replace(tzinfo=None)
         query = query.filter(EventModel.start_time >= start_date)
-        
+
     if end_date:
         if end_date.tzinfo is not None:
             end_date = end_date.replace(tzinfo=None)
@@ -129,10 +151,7 @@ def get_events(
     # 5. 並び順とページネーション
     offset = (page - 1) * per_page
     db_events = (
-        query.order_by(EventModel.start_time.asc())
-        .offset(offset)
-        .limit(per_page)
-        .all()
+        query.order_by(EventModel.start_time.asc()).offset(offset).limit(per_page).all()
     )
 
     # 💡 追記：各イベントに紐づく実際の参加者数を集計してセットする
@@ -141,7 +160,7 @@ def get_events(
             db.query(EventRegistrationModel)
             .filter(
                 EventRegistrationModel.event_id == event.id,
-                EventRegistrationModel.status == "attending"
+                EventRegistrationModel.status == "attending",
             )
             .count()
         )
@@ -149,6 +168,7 @@ def get_events(
         event.attendee_count = attend_count
 
     return db_events
+
 
 # --- ③ イベント詳細取得（GET /events/{event_id}） ---
 @router.get("/{event_id}", response_model=EventResponse)
@@ -175,11 +195,15 @@ def update_event(
 ):
     db_event = db.query(EventModel).filter(EventModel.id == event_id).first()
     if db_event is None:
-        raise HTTPException(status_code=404, detail="指定されたイベントが見つかりません。")
+        raise HTTPException(
+            status_code=404, detail="指定されたイベントが見つかりません。"
+        )
 
     user = db.query(UserModel).filter(UserModel.username == current_username).first()
     if not user or db_event.creator_id != user.id:
-        raise HTTPException(status_code=403, detail="自分が作成したイベント以外は編集できません。")
+        raise HTTPException(
+            status_code=403, detail="自分が作成したイベント以外は編集できません。"
+        )
 
     db_event.title = event.title
     db_event.description = event.description
@@ -220,4 +244,3 @@ def delete_event(
     db.delete(db_event)
     db.commit()
     return {"status": "success", "message": f"Event {event_id} has been deleted."}
-
