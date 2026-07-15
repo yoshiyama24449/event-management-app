@@ -50,10 +50,12 @@ class EventUpdate(EventBase):
                 raise ValueError("終了日時は開始日時より後の時間を指定してください。")
         return end_time
 
+
 # 💡 追記：レスポンス時にタグオブジェクトのネストを文字列リストに変換するためのカスタムモデル
 class TagResponse(BaseModel):
     name: str
     model_config = ConfigDict(from_attributes=True)
+
 
 class EventResponse(EventBase):
     id: int

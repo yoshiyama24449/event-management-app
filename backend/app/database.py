@@ -6,7 +6,7 @@ from sqlalchemy import (
     Text,
     DateTime,
     ForeignKey,
-    Table
+    Table,
 )
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 from datetime import datetime, timezone, timedelta
@@ -52,7 +52,9 @@ JST = timezone(timedelta(hours=9))
 
 def get_jst_now():
     """現在時刻を日本時間(JST)で取得するヘルパー関数"""
-    return datetime.now(timezone.utc).astimezone(JST) # 👈 確実にタイムゾーンAwareにする
+    return datetime.now(timezone.utc).astimezone(
+        JST
+    )  # 👈 確実にタイムゾーンAwareにする
 
 
 # =========================================================================
@@ -65,9 +67,17 @@ def get_jst_now():
 event_tags_association = Table(
     "event_tags_association",
     Base.metadata,
-    Column("event_id", Integer, ForeignKey("events.id", ondelete="CASCADE"), primary_key=True),
-    Column("tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True),
+    Column(
+        "event_id",
+        Integer,
+        ForeignKey("events.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "tag_id", Integer, ForeignKey("tags.id", ondelete="CASCADE"), primary_key=True
+    ),
 )
+
 
 # このPythonのクラスが、そのままPostgreSQL内の「events」テーブルに自動翻訳されます。
 class EventModel(Base):
@@ -108,8 +118,9 @@ class EventModel(Base):
         "TagModel",
         secondary=event_tags_association,
         back_populates="events",
-        lazy="selectin"  # 👈 クエリ時に自動的にタグ情報も引っ張ってくるための魔法
+        lazy="selectin",  # 👈 クエリ時に自動的にタグ情報も引っ張ってくるための魔法
     )
+
 
 # =========================================================================
 # 💡 追加：タグ情報を保存するORMモデル
@@ -118,14 +129,15 @@ class TagModel(Base):
     __tablename__ = "tags"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(50), unique=True, index=True, nullable=False)  # タグ名（重複不可）
+    name = Column(
+        String(50), unique=True, index=True, nullable=False
+    )  # タグ名（重複不可）
 
     # 相互リレーションシップの定義
     events = relationship(
-        "EventModel",
-        secondary=event_tags_association,
-        back_populates="tags"
+        "EventModel", secondary=event_tags_association, back_populates="tags"
     )
+
 
 # =========================================================================
 # 5. 【超重要】データベースセッションの安全なライフサイクル管理
@@ -208,4 +220,3 @@ class CommentModel(Base):
     created_at = Column(DateTime(timezone=True), default=get_jst_now, nullable=False)
 
     user = relationship("UserModel")
-

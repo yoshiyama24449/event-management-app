@@ -3,6 +3,7 @@ import pytest
 from datetime import timedelta
 from app.database import get_jst_now  # 💡 統一した時間取得関数を使用
 
+
 def test_registration_flow_success(authorized_client):
     """① 参加登録・更新・キャンセルの正常系一連フロー"""
     # 💡 get_jst_now() を使うことで、確実にタイムゾーン Aware (JST) になります
@@ -14,7 +15,7 @@ def test_registration_flow_success(authorized_client):
         "capacity": 5,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": []
+        "tags": [],
     }
     create_res = authorized_client.post("/events", json=event_data)
     assert create_res.status_code == 201
@@ -45,7 +46,7 @@ def test_registration_capacity_limit(client, authorized_client):
         "capacity": 1,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": []
+        "tags": [],
     }
     create_res = authorized_client.post("/events", json=event_data)
     assert create_res.status_code == 201
@@ -95,7 +96,7 @@ def test_registration_capacity_limit(client, authorized_client):
 def test_registration_finished_event_forbidden(authorized_client):
     """③ 既に終了したイベントに参加/ブックマークを試みると400エラーになること"""
     from app.database import EventModel, SessionLocal
-    
+
     db = SessionLocal()
     past_event = EventModel(
         title="終了した過去のイベント",

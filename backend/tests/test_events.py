@@ -18,7 +18,7 @@ def test_create_and_get_event(authorized_client):
         "capacity": 10,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": ["Python", "FastAPI"]  # 💡 タグ付きで作成テスト
+        "tags": ["Python", "FastAPI"],  # 💡 タグ付きで作成テスト
     }
 
     headers = {"X-User-Name": "test_user"}
@@ -30,7 +30,9 @@ def test_create_and_get_event(authorized_client):
     data = response.json()
     assert data["title"] == "テスト用モブプロ"
     assert data["capacity"] == 10
-    assert "Python" in data["tag_names"]  # 💡 タグが正常に返却されているかチェック[cite: 6]
+    assert (
+        "Python" in data["tag_names"]
+    )  # 💡 タグが正常に返却されているかチェック[cite: 6]
     assert "id" in data
 
     # 4. イベント一覧 API (GET /events) を叩いて、今作ったものが含まれているか確認
@@ -47,37 +49,45 @@ def test_get_events_with_filters(authorized_client):
     # 💡 ミリ秒を切り捨て、確実に未来であることが保証される「JST Aware」な時間を生成[cite: 13]
     # 💡 標準的なフォーマット（例: 2026-07-20T10:00:00+09:00）で統一して文字列化します[cite: 6]
     base_time = get_jst_now().replace(microsecond=0)
-    
+
     start1 = base_time + timedelta(days=2)
     end1 = start1 + timedelta(hours=2)
-    
+
     start2 = base_time + timedelta(days=4)
     end2 = start2 + timedelta(hours=2)
 
     headers = {"X-User-Name": "test_user"}
 
     # 1. イベントA (Python) の登録
-    res_a = authorized_client.post("/events", json={
-        "title": "Python勉強会",
-        "description": "Python初学者向け",
-        "location": "渋谷",
-        "capacity": 5,
-        "start_time": start1.isoformat(), # 例: "2026-07-16T21:15:13+09:00"
-        "end_time": end1.isoformat(),
-        "tags": ["Python"]
-    }, headers=headers)
+    res_a = authorized_client.post(
+        "/events",
+        json={
+            "title": "Python勉強会",
+            "description": "Python初学者向け",
+            "location": "渋谷",
+            "capacity": 5,
+            "start_time": start1.isoformat(),  # 例: "2026-07-16T21:15:13+09:00"
+            "end_time": end1.isoformat(),
+            "tags": ["Python"],
+        },
+        headers=headers,
+    )
     assert res_a.status_code == 201
 
     # 2. イベントB (Rust) の登録
-    res_b = authorized_client.post("/events", json={
-        "title": "Rustもくもく会",
-        "description": "Rustで開発する会",
-        "location": "新宿",
-        "capacity": 10,
-        "start_time": start2.isoformat(),
-        "end_time": end2.isoformat(),
-        "tags": ["Rust"]
-    }, headers=headers)
+    res_b = authorized_client.post(
+        "/events",
+        json={
+            "title": "Rustもくもく会",
+            "description": "Rustで開発する会",
+            "location": "新宿",
+            "capacity": 10,
+            "start_time": start2.isoformat(),
+            "end_time": end2.isoformat(),
+            "tags": ["Rust"],
+        },
+        headers=headers,
+    )
     assert res_b.status_code == 201
 
     # (検証1) キーワード検索
@@ -97,7 +107,9 @@ def test_get_events_with_filters(authorized_client):
     # (検証3) 日付範囲検索（1日後〜3日後を範囲とし、4日後のRustを除外する）
     # 💡 URLクエリパラメータに載せる日付文字列は、URLエンコードの不整合を避けるため
     #    特殊文字（+ や 空白）が噛み合わないのを防ぐために、あえてシンプルな Naive 文字列でリクエストを投げます。
-    target_end_range = (get_jst_now() + timedelta(days=3)).replace(microsecond=0, tzinfo=None)
+    target_end_range = (get_jst_now() + timedelta(days=3)).replace(
+        microsecond=0, tzinfo=None
+    )
     res_date = authorized_client.get(
         f"/events?end_date={target_end_range.isoformat()}&hide_finished=false"
     )
@@ -119,7 +131,7 @@ def test_create_event_invalid_capacity(authorized_client):
         "capacity": 0,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": []
+        "tags": [],
     }
 
     response = authorized_client.post(
@@ -140,7 +152,7 @@ def test_create_event_invalid_date_order(authorized_client):
         "capacity": 10,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": []
+        "tags": [],
     }
 
     response = authorized_client.post(
@@ -174,7 +186,7 @@ def test_update_event(authorized_client):
         "capacity": 5,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": ["Legacy"]
+        "tags": ["Legacy"],
     }
     headers = {"X-User-Name": "test_user"}
     create_res = authorized_client.post("/events", json=event_data, headers=headers)
@@ -206,7 +218,7 @@ def test_delete_event(authorized_client):
         "capacity": 10,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": []
+        "tags": [],
     }
     headers = {"X-User-Name": "test_user"}
     create_res = authorized_client.post("/events", json=event_data, headers=headers)
@@ -232,7 +244,7 @@ def test_get_events_pagination(authorized_client):
             "capacity": 10,
             "start_time": start.isoformat(),
             "end_time": end.isoformat(),
-            "tags": []
+            "tags": [],
         }
         authorized_client.post("/events", json=event_data, headers=headers)
 
@@ -255,7 +267,7 @@ def test_cannot_update_or_delete_other_user_event(client, authorized_client):
         "capacity": 10,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": []
+        "tags": [],
     }
     create_res = authorized_client.post(
         "/events", json=event_data, headers={"X-User-Name": "test_user"}

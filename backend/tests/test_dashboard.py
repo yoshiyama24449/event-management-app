@@ -15,7 +15,7 @@ def test_get_dashboard_data_success(client, authorized_client):
         "capacity": 10,
         "start_time": start.isoformat(),
         "end_time": end.isoformat(),
-        "tags": ["DashboardTest"]  # 💡 必須になったタグを指定[cite: 6]
+        "tags": ["DashboardTest"],  # 💡 必須になったタグを指定[cite: 6]
     }
     create_res = authorized_client.post("/events", json=event_data)
     event_id = create_res.json()["id"]

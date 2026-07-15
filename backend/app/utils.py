@@ -47,7 +47,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 def get_current_user_name(
     token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)  # 👈 💡 db セッションを注入
+    db: Session = Depends(get_db),  # 👈 💡 db セッションを注入
 ) -> str:
     """JWTトークンを検証し、さらにDBにユーザーが実在するか確認してユーザー名を返す関数"""
     credentials_exception = HTTPException(
@@ -61,12 +61,12 @@ def get_current_user_name(
         username: str = payload.get("sub")
         if username is None:
             raise credentials_exception
-            
+
         # 💡 【要件クリア】データベースにユーザーが今も実在するかを厳格にチェック
         user_exists = db.query(UserModel).filter(UserModel.username == username).first()
         if not user_exists:
             raise credentials_exception
-            
+
         return username
     except jwt.PyJWTError:
         raise credentials_exception
