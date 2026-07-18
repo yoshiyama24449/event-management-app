@@ -182,6 +182,18 @@ def get_event(
         raise HTTPException(
             status_code=404, detail="指定されたイベントが見つかりません。"
         )
+    
+    # 💡 【追記】実際の参加者数を集計してオブジェクトにセットする
+    attend_count = (
+        db.query(EventRegistrationModel)
+        .filter(
+            EventRegistrationModel.event_id == db_event.id,
+            EventRegistrationModel.status == "attending",
+        )
+        .count()
+    )
+    db_event.attendee_count = attend_count  # Pydanticのレスポンスに反映させる
+
     return db_event
 
 
